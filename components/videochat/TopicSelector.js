@@ -26,6 +26,34 @@ const TOPICS = [
   { id: 'languages', name: 'Languages', icon: '🗣️' },
 ];
 
+const LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'de', name: 'German' },
+  { code: 'it', name: 'Italian' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ru', name: 'Russian' },
+  { code: 'zh', name: 'Chinese' },
+  { code: 'ja', name: 'Japanese' },
+  { code: 'ko', name: 'Korean' },
+];
+
+const CONTINENTS = [
+  { code: 'any', name: 'Any Region' },
+  { code: 'na', name: 'North America' },
+  { code: 'sa', name: 'South America' },
+  { code: 'eu', name: 'Europe' },
+  { code: 'as', name: 'Asia' },
+  { code: 'af', name: 'Africa' },
+  { code: 'oc', name: 'Oceania' },
+];
+
+const ROLES = [
+  { id: 'participant', name: 'Participant' },
+  { id: 'observer', name: 'Observer' },
+];
+
 // Sample conversation starters for each topic
 const CONVERSATION_STARTERS = {
   politics: [
@@ -41,7 +69,16 @@ const CONVERSATION_STARTERS = {
   // Add more starters for other topics as needed
 };
 
-const TopicSelector = ({ selectedTopic, setSelectedTopic }) => {
+const TopicSelector = ({ 
+  selectedTopic, 
+  onTopicSelect, 
+  filters, 
+  setFilters, 
+  role, 
+  setRole, 
+  onFindPartner,
+  isFinding 
+}) => {
   const { user } = useContext(UserContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [showStarters, setShowStarters] = useState(false);
@@ -85,24 +122,23 @@ const TopicSelector = ({ selectedTopic, setSelectedTopic }) => {
   );
 
   const handleTopicSelect = (topicId) => {
-    setSelectedTopic(topicId);
+    onTopicSelect(topicId);
     setShowStarters(true);
   };
 
   return (
-    <div>
-      <h2 className="text-lg font-semibold text-gray-700 mb-2">Select a Topic</h2>
-      
-      <div className="mb-4">
+    <div className="space-y-6 p-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-700 mb-2">Select a Topic</h2>
         <input
           type="text"
           placeholder="Search topics..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="input-field"
+          className="input-field w-full"
         />
       </div>
-      
+
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
         {filteredTopics.map((topic) => (
           <button
@@ -125,6 +161,62 @@ const TopicSelector = ({ selectedTopic, setSelectedTopic }) => {
           </button>
         ))}
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Language Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Language
+          </label>
+          <select
+            value={filters.language}
+            onChange={(e) => setFilters({ ...filters, language: e.target.value })}
+            className="input-field w-full"
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Continent Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Region
+          </label>
+          <select
+            value={filters.continent}
+            onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
+            className="input-field w-full"
+          >
+            {CONTINENTS.map((continent) => (
+              <option key={continent.code} value={continent.code}>
+                {continent.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Role Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Role
+          </label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="input-field w-full"
+          >
+            {ROLES.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       
       {showStarters && selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
         <div className="mt-4 p-4 bg-secondary rounded-lg">
@@ -136,6 +228,20 @@ const TopicSelector = ({ selectedTopic, setSelectedTopic }) => {
           </ul>
         </div>
       )}
+
+      <div className="flex justify-center">
+        <button
+          onClick={onFindPartner}
+          disabled={!selectedTopic || isFinding}
+          className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+            !selectedTopic || isFinding
+              ? 'bg-gray-300 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary-dark'
+          }`}
+        >
+          {isFinding ? 'Finding Partner...' : 'Find Discussion Partner'}
+        </button>
+      </div>
     </div>
   );
 };
