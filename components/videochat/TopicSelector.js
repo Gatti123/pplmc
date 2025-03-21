@@ -91,7 +91,7 @@ const TopicSelector = ({
     // Create a query for active rooms
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', '==', 'waiting'),
+      where('status', 'in', ['waiting', 'active']), // Include both waiting and active rooms
       where('language', '==', filters.language)
     );
 
@@ -104,13 +104,14 @@ const TopicSelector = ({
         topicCounts[topic.id] = 0;
       });
 
-      // Count users in waiting rooms for each topic
+      // Count all users in rooms for each topic
       snapshot.docs.forEach(doc => {
         const room = doc.data();
         if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
           // Only count rooms that match the current filters
           if (filters.continent === 'any' || room.continent === filters.continent) {
-            topicCounts[room.topic] += 1;
+            // Add count of all participants in the room
+            topicCounts[room.topic] += room.participants?.length || 0;
           }
         }
       });
@@ -159,7 +160,7 @@ const TopicSelector = ({
             {onlineUsers[topic.id] > 0 && (
               <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium 
                 ${selectedTopic === topic.id ? 'bg-white text-primary' : 'bg-primary text-white'}`}>
-                {onlineUsers[topic.id]} waiting
+                {onlineUsers[topic.id]} online
               </div>
             )}
           </button>
