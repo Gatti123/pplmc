@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useContext } from 'react';
 import { connect, createLocalVideoTrack } from 'twilio-video';
 import { UserContext } from '../../context/UserContext';
 import { db, updateUserOnlineStatus } from '../../lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, onSnapshot, query, where, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, onSnapshot, query, where, serverTimestamp, arrayUnion, getDocs } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import VideoControls from './VideoControls';
 import TextChat from './TextChat';
@@ -112,35 +112,55 @@ const VideoChat = () => {
         where('status', '==', 'waiting'),
         where('language', '==', filters.language)
       );
+
+      const querySnapshot = await getDocs(roomsQuery);
       
-      // Create a new room if no matching room is found
-      const roomId = uuidv4();
-      const roomRef = await addDoc(collection(db, 'rooms'), {
-        roomId,
-        topic: selectedTopic,
-        createdAt: serverTimestamp(),
-        createdBy: user.uid,
-        participants: [
-          {
+      let roomRef;
+      
+      // If there's an available room, join it
+      if (!querySnapshot.empty) {
+        const existingRoom = querySnapshot.docs[0];
+        roomRef = doc(db, 'rooms', existingRoom.id);
+        
+        // Update room with new participant
+        await updateDoc(roomRef, {
+          status: 'active',
+          participants: arrayUnion({
             uid: user.uid,
             displayName: user.displayName,
             role: role,
-          },
-        ],
-        status: 'waiting',
-        language: filters.language,
-        continent: filters.continent,
-        timerDuration: timerDuration,
-        isTimerActive: false,
-      });
+          }),
+        });
+      } else {
+        // Create a new room if no matching room is found
+        const roomId = uuidv4();
+        roomRef = await addDoc(collection(db, 'rooms'), {
+          roomId,
+          topic: selectedTopic,
+          createdAt: serverTimestamp(),
+          createdBy: user.uid,
+          participants: [
+            {
+              uid: user.uid,
+              displayName: user.displayName,
+              role: role,
+            },
+          ],
+          status: 'waiting',
+          language: filters.language,
+          continent: filters.continent,
+          timerDuration: timerDuration,
+          isTimerActive: false,
+        });
+      }
       
       // Listen for room updates
       roomUnsubscribeRef.current = onSnapshot(doc(db, 'rooms', roomRef.id), async (snapshot) => {
         const data = snapshot.data();
         setRoomDetails(data);
         
-        // If another participant joined, connect to the room
-        if (data.status === 'active' && !isInRoom) {
+        // If room is active and has two participants, connect to the room
+        if (data.status === 'active' && data.participants.length === 2 && !isInRoom) {
           await connectToRoom(data.roomId);
           
           // Update user's recent discussions
