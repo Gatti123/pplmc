@@ -2,35 +2,31 @@ import { useState } from 'react';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaPhoneSlash, FaFlag } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
-const VideoControls = ({ room, onLeave }) => {
-  const [isAudioMuted, setIsAudioMuted] = useState(false);
-  const [isVideoOff, setIsVideoOff] = useState(false);
+const VideoControls = ({ room, onLeave, tracks }) => {
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
 
   const toggleAudio = () => {
-    if (room) {
-      room.localParticipant.audioTracks.forEach((publication) => {
-        if (isAudioMuted) {
-          publication.track.enable();
-        } else {
-          publication.track.disable();
-        }
-      });
-      setIsAudioMuted(!isAudioMuted);
+    if (tracks && tracks[0]) {
+      if (isAudioEnabled) {
+        tracks[0].setEnabled(false);
+      } else {
+        tracks[0].setEnabled(true);
+      }
+      setIsAudioEnabled(!isAudioEnabled);
     }
   };
 
   const toggleVideo = () => {
-    if (room) {
-      room.localParticipant.videoTracks.forEach((publication) => {
-        if (isVideoOff) {
-          publication.track.enable();
-        } else {
-          publication.track.disable();
-        }
-      });
-      setIsVideoOff(!isVideoOff);
+    if (tracks && tracks[1]) {
+      if (isVideoEnabled) {
+        tracks[1].setEnabled(false);
+      } else {
+        tracks[1].setEnabled(true);
+      }
+      setIsVideoEnabled(!isVideoEnabled);
     }
   };
 
@@ -56,28 +52,25 @@ const VideoControls = ({ room, onLeave }) => {
       <div className="flex justify-center space-x-4">
         <button
           onClick={toggleAudio}
-          className={`p-3 rounded-full ${
-            isAudioMuted ? 'bg-red-500' : 'bg-primary'
-          } text-white`}
-          title={isAudioMuted ? 'Unmute' : 'Mute'}
+          className={`p-4 rounded-full ${
+            isAudioEnabled ? 'bg-primary text-white' : 'bg-red-500 text-white'
+          }`}
         >
-          {isAudioMuted ? <FaMicrophoneSlash /> : <FaMicrophone />}
+          {isAudioEnabled ? <FaMicrophone /> : <FaMicrophoneSlash />}
         </button>
 
         <button
           onClick={toggleVideo}
-          className={`p-3 rounded-full ${
-            isVideoOff ? 'bg-red-500' : 'bg-primary'
-          } text-white`}
-          title={isVideoOff ? 'Turn on camera' : 'Turn off camera'}
+          className={`p-4 rounded-full ${
+            isVideoEnabled ? 'bg-primary text-white' : 'bg-red-500 text-white'
+          }`}
         >
-          {isVideoOff ? <FaVideoSlash /> : <FaVideo />}
+          {isVideoEnabled ? <FaVideo /> : <FaVideoSlash />}
         </button>
 
         <button
           onClick={handleLeave}
-          className="p-3 rounded-full bg-red-500 text-white"
-          title="Leave discussion"
+          className="p-4 rounded-full bg-red-500 text-white"
         >
           <FaPhoneSlash />
         </button>
