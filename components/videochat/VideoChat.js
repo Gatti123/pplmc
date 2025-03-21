@@ -103,6 +103,7 @@ const VideoChat = () => {
     }
     
     setIsFinding(true);
+    console.log('Starting search with filters:', { topic: selectedTopic, language: filters.language, role });
     
     try {
       // Check for available rooms with the same topic and filters
@@ -114,11 +115,13 @@ const VideoChat = () => {
       );
 
       const querySnapshot = await getDocs(roomsQuery);
+      console.log('Found waiting rooms:', querySnapshot.size);
       
       let roomRef;
       
       // If there's an available room, join it
       if (!querySnapshot.empty) {
+        console.log('Found existing room to join');
         const existingRoom = querySnapshot.docs[0];
         roomRef = doc(db, 'rooms', existingRoom.id);
         
@@ -131,7 +134,9 @@ const VideoChat = () => {
             role: role,
           }),
         });
+        console.log('Joined existing room:', existingRoom.id);
       } else {
+        console.log('Creating new room');
         // Create a new room if no matching room is found
         const roomId = uuidv4();
         roomRef = await addDoc(collection(db, 'rooms'), {
@@ -152,15 +157,27 @@ const VideoChat = () => {
           timerDuration: timerDuration,
           isTimerActive: false,
         });
+        console.log('Created new room:', roomRef.id);
       }
       
       // Listen for room updates
       roomUnsubscribeRef.current = onSnapshot(doc(db, 'rooms', roomRef.id), async (snapshot) => {
         const data = snapshot.data();
+        console.log('Room update:', { 
+          roomId: roomRef.id, 
+          status: data.status, 
+          participantsCount: data.participants?.length,
+          participants: data.participants 
+        });
         setRoomDetails(data);
         
         // If room is active and has two participants, connect to the room
-        if (data.status === 'active' && data.participants.length === 2 && !isInRoom) {
+        if (data.status === 'active' && data.participants?.length === 2 && !isInRoom) {
+          console.log('Connecting to room - conditions met:', {
+            status: data.status,
+            participantsCount: data.participants.length,
+            isInRoom
+          });
           await connectToRoom(data.roomId);
           
           // Update user's recent discussions
@@ -186,6 +203,7 @@ const VideoChat = () => {
   // Connect to a Twilio room
   const connectToRoom = async (roomId) => {
     try {
+      console.log('Requesting Twilio token for room:', roomId);
       // Get Twilio token from server
       const response = await fetch('/api/get-token', {
         method: 'POST',
@@ -199,6 +217,7 @@ const VideoChat = () => {
       });
       
       const { token } = await response.json();
+      console.log('Received Twilio token, connecting to room...');
       
       // Connect to Twilio room
       const twilioRoom = await connect(token, {
@@ -208,6 +227,7 @@ const VideoChat = () => {
         dominantSpeaker: true,
       });
       
+      console.log('Connected to Twilio room successfully');
       setRoom(twilioRoom);
       setIsInRoom(true);
       setIsFinding(false);
