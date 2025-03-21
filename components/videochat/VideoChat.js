@@ -219,7 +219,7 @@ const VideoChat = () => {
         console.log('Creating new room');
         // Create a new room if no matching room is found
         roomId = uuidv4();
-        roomRef = await addDoc(collection(db, 'rooms'), {
+        const newRoomData = {
           roomId,
           topic: selectedTopic,
           createdAt: serverTimestamp(),
@@ -236,7 +236,10 @@ const VideoChat = () => {
           continent: filters.continent,
           timerDuration: timerDuration,
           isTimerActive: false,
-        });
+          messages: [],
+        };
+        
+        roomRef = await addDoc(collection(db, 'rooms'), newRoomData);
         console.log('Created new room:', roomRef.id);
       }
 
@@ -251,11 +254,13 @@ const VideoChat = () => {
           participantsCount: data.participants?.length,
           participants: data.participants 
         });
-        setRoomDetails(data);
+        
+        setRoomDetails({ id: snapshot.id, ...data });
         
         // If room is active and has two participants, set isInRoom
         if (data.status === 'active' && data.participants?.length === 2 && !isInRoom) {
           setIsInRoom(true);
+          setIsFinding(false);
           
           // Update user's recent discussions
           await updateDoc(doc(db, 'users', user.uid), {
@@ -266,6 +271,11 @@ const VideoChat = () => {
               participants: data.participants,
             }),
           });
+        }
+
+        // Update messages
+        if (data.messages) {
+          setMessages(data.messages);
         }
       });
       
@@ -278,8 +288,8 @@ const VideoChat = () => {
   };
 
   const leaveDiscussion = async () => {
-    if (roomDetails) {
-      try {
+    try {
+      if (roomDetails) {
         // Update room status in Firebase
         const roomRef = doc(db, 'rooms', roomDetails.id);
         await updateDoc(roomRef, {
@@ -288,59 +298,74 @@ const VideoChat = () => {
         });
 
         // Leave Agora channel
-        await client.leave();
-        client.removeAllListeners();
-        tracks.forEach((track) => {
-          track.close();
-        });
+        if (client) {
+          await client.leave();
+          client.removeAllListeners();
+        }
+        
+        if (tracks) {
+          tracks.forEach((track) => {
+            track.close();
+          });
+        }
+
+        // Reset state
         setUsers([]);
         setStart(false);
         setRoom(null);
         setIsInRoom(false);
+        setIsFinding(false);
+        setMessages([]);
+        setRoomDetails(null);
         
         if (roomUnsubscribeRef.current) {
           roomUnsubscribeRef.current();
+          roomUnsubscribeRef.current = null;
         }
         
         toast.success('Left the discussion successfully.');
-      } catch (error) {
-        console.error('Error leaving discussion:', error);
-        toast.error('Error leaving discussion. Please try again.');
       }
+    } catch (error) {
+      console.error('Error leaving discussion:', error);
+      toast.error('Error leaving discussion. Please try again.');
     }
   };
 
-  // Send a chat message
   const sendMessage = async (text) => {
-    if (!room || !text.trim()) return;
-    
-    const messageData = {
-      text,
-      sender: {
-        uid: user.uid,
-        displayName: user.displayName,
-      },
-      timestamp: new Date().toISOString(),
-    };
-    
-    // Add message to local state
-    setMessages((prevMessages) => [...prevMessages, messageData]);
-    
-    // Send message to room data channel
-    room.localParticipant.publishData({ message: JSON.stringify(messageData) });
-    
-    // Store message in Firestore
+    if (!roomDetails || !user) return;
+
     try {
-      await addDoc(collection(db, 'rooms', roomDetails.id, 'messages'), messageData);
+      const newMessage = {
+        text,
+        sender: {
+          uid: user.uid,
+          displayName: user.displayName,
+        },
+        timestamp: serverTimestamp(),
+      };
+
+      const roomRef = doc(db, 'rooms', roomDetails.id);
+      await updateDoc(roomRef, {
+        messages: arrayUnion(newMessage),
+      });
     } catch (error) {
-      console.error('Error storing message:', error);
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message. Please try again.');
     }
   };
-  
-  // Handle timer end
-  const handleTimerEnd = () => {
-    toast.info('Discussion time has ended. You can continue or find a new partner.');
-    setIsTimerActive(false);
+
+  const handleTimerEnd = async () => {
+    if (!roomDetails) return;
+
+    try {
+      const roomRef = doc(db, 'rooms', roomDetails.id);
+      await updateDoc(roomRef, {
+        isTimerActive: false,
+      });
+      toast.info('Discussion time has ended.');
+    } catch (error) {
+      console.error('Error updating timer status:', error);
+    }
   };
 
   return (
