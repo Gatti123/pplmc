@@ -9,7 +9,7 @@ import TextChat from './TextChat';
 import TopicSelector from './TopicSelector';
 import DiscussionTimer from './DiscussionTimer';
 import { v4 as uuidv4 } from 'uuid';
-import { config, createClient, createMicrophoneAndCameraTracks } from '../../lib/agora';
+import { config, createClient, createMicrophoneAndCameraTracks, getAgoraToken } from '../../lib/agora';
 
 const VideoChat = () => {
   const { user } = useContext(UserContext);
@@ -113,6 +113,9 @@ const VideoChat = () => {
 
     const init = async () => {
       try {
+        // Get token for the room
+        const token = await getAgoraToken(room, user.uid);
+        
         // Setup event handlers
         client.on("user-published", async (user, mediaType) => {
           if (!mounted) return;
@@ -142,8 +145,8 @@ const VideoChat = () => {
           toast.info(`A participant has left the discussion.`);
         });
 
-        // Join the channel
-        await client.join(config.appId, room, config.token, user.uid);
+        // Join the channel with token
+        await client.join(config.appId, room, token, user.uid);
         console.log('Successfully joined Agora channel:', room);
 
         // Publish local tracks if available
