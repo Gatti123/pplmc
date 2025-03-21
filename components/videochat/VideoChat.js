@@ -8,15 +8,15 @@ import TextChat from './TextChat';
 import TopicSelector from './TopicSelector';
 import DiscussionTimer from './DiscussionTimer';
 import { v4 as uuidv4 } from 'uuid';
-import { config, useClient, useMicrophoneAndCameraTracks } from '../../lib/agora';
-import AgoraRTC from "agora-rtc-sdk-ng";
+import { config, createClient, createMicrophoneAndCameraTracks } from '../../lib/agora';
 
 const VideoChat = () => {
   const { user } = useContext(UserContext);
   const [room, setRoom] = useState(null);
   const [participants, setParticipants] = useState([]);
-  const client = useClient();
-  const { ready, tracks } = useMicrophoneAndCameraTracks();
+  const [client, setClient] = useState(null);
+  const [ready, setReady] = useState(false);
+  const [tracks, setTracks] = useState(null);
   const [isFinding, setIsFinding] = useState(false);
   const [isInRoom, setIsInRoom] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState('');
@@ -34,8 +34,30 @@ const VideoChat = () => {
   
   const roomUnsubscribeRef = useRef(null);
 
+  // Initialize Agora client
   useEffect(() => {
-    // Cleanup function
+    if (typeof window !== 'undefined') {
+      const agoraClient = createClient();
+      if (agoraClient) {
+        setClient(agoraClient);
+      }
+    }
+  }, []);
+
+  // Initialize tracks
+  useEffect(() => {
+    const initTracks = async () => {
+      if (typeof window !== 'undefined' && !tracks) {
+        const { tracks: newTracks, ready: isReady } = await createMicrophoneAndCameraTracks();
+        if (isReady && newTracks) {
+          setTracks(newTracks);
+          setReady(true);
+        }
+      }
+    };
+
+    initTracks();
+
     return () => {
       if (tracks) {
         tracks.forEach((track) => {
@@ -46,7 +68,9 @@ const VideoChat = () => {
   }, []);
 
   useEffect(() => {
-    let init = async (roomId) => {
+    if (!client || !room) return;
+
+    const init = async () => {
       client.on("user-published", async (user, mediaType) => {
         await client.subscribe(user, mediaType);
         if (mediaType === "video") {
@@ -78,7 +102,7 @@ const VideoChat = () => {
       });
 
       try {
-        await client.join(config.appId, roomId, config.token, user.uid);
+        await client.join(config.appId, room, config.token, user.uid);
         if (tracks) {
           await client.publish(tracks);
           setStart(true);
@@ -89,14 +113,14 @@ const VideoChat = () => {
       }
     };
 
-    if (ready && tracks) {
-      try {
-        init(room);
-      } catch (error) {
-        console.error("Error initializing:", error);
+    init();
+
+    return () => {
+      if (client) {
+        client.removeAllListeners();
       }
-    }
-  }, [client, ready, tracks]);
+    };
+  }, [client, room, tracks, user?.uid]);
 
   // Find a discussion room
   const findDiscussion = async () => {
