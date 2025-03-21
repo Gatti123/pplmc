@@ -51,18 +51,39 @@ const VideoChat = () => {
   // Initialize Agora client
   useEffect(() => {
     let mounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
 
     const initClient = async () => {
       if (typeof window !== 'undefined') {
         try {
           const agoraClient = await createClient();
           if (agoraClient && mounted) {
+            // Add connection state change handler
+            agoraClient.on('connection-state-change', (curState, prevState, reason) => {
+              console.log('Connection state changed:', prevState, '->', curState, 'reason:', reason);
+              
+              if (curState === 'DISCONNECTED' && reason !== 'LEAVE') {
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  console.log(`Attempting to reconnect (${retryCount}/${maxRetries})...`);
+                  setTimeout(() => {
+                    if (room) {
+                      initializeAgoraConnection(agoraClient);
+                    }
+                  }, 2000 * retryCount); // Exponential backoff
+                } else {
+                  toast.error('Connection lost. Please try rejoining the discussion.');
+                }
+              }
+            });
+
             setClient(agoraClient);
           }
         } catch (error) {
           console.error('Error initializing Agora client:', error);
           if (mounted) {
-            toast.error('Failed to initialize video chat. Please try again.');
+            toast.error('Failed to initialize video chat. Please check your internet connection and try again.');
           }
         }
       }
@@ -72,8 +93,41 @@ const VideoChat = () => {
 
     return () => {
       mounted = false;
+      retryCount = 0;
     };
   }, []);
+
+  // Function to initialize Agora connection
+  const initializeAgoraConnection = async (agoraClient) => {
+    if (!agoraClient || !room || !user) return;
+
+    try {
+      // Get token for the room
+      const token = await getAgoraToken(room, user.uid);
+      
+      // Join the channel with token
+      await agoraClient.join(config.appId, room, token, user.uid);
+      console.log('Successfully joined Agora channel:', room);
+
+      // Publish local tracks if available
+      if (tracks) {
+        await agoraClient.publish(tracks);
+        setStart(true);
+        console.log('Local tracks published successfully');
+      }
+    } catch (error) {
+      console.error("Error in Agora initialization:", error);
+      toast.error("Failed to join the discussion room. Please try again.");
+      
+      // Handle specific error cases
+      if (error.code === 'INVALID_TOKEN') {
+        toast.error("Session expired. Please rejoin the discussion.");
+        leaveDiscussion();
+      } else if (error.code === 'NETWORK_ERROR') {
+        toast.error("Network connection issues. Please check your internet connection.");
+      }
+    }
+  };
 
   // Initialize tracks
   useEffect(() => {
@@ -116,19 +170,21 @@ const VideoChat = () => {
 
     const init = async () => {
       try {
-        // Get token for the room
-        const token = await getAgoraToken(room, user.uid);
-        
         // Setup event handlers
         client.on("user-published", async (user, mediaType) => {
           if (!mounted) return;
-          await client.subscribe(user, mediaType);
-          
-          if (mediaType === "video") {
-            setUsers((prevUsers) => [...prevUsers.filter(u => u.uid !== user.uid), user]);
-          }
-          if (mediaType === "audio") {
-            user.audioTrack?.play();
+          try {
+            await client.subscribe(user, mediaType);
+            
+            if (mediaType === "video") {
+              setUsers((prevUsers) => [...prevUsers.filter(u => u.uid !== user.uid), user]);
+            }
+            if (mediaType === "audio") {
+              user.audioTrack?.play();
+            }
+          } catch (error) {
+            console.error("Error subscribing to user:", error);
+            toast.error("Failed to connect to another participant's stream.");
           }
         });
 
@@ -148,16 +204,8 @@ const VideoChat = () => {
           toast.info(`A participant has left the discussion.`);
         });
 
-        // Join the channel with token
-        await client.join(config.appId, room, token, user.uid);
-        console.log('Successfully joined Agora channel:', room);
-
-        // Publish local tracks if available
-        if (tracks) {
-          await client.publish(tracks);
-          setStart(true);
-          console.log('Local tracks published successfully');
-        }
+        // Initialize connection
+        await initializeAgoraConnection(client);
       } catch (error) {
         console.error("Error in Agora initialization:", error);
         if (mounted) {
