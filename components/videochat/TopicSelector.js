@@ -91,7 +91,8 @@ const TopicSelector = ({
     // Create a query for active rooms
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', '==', 'waiting')
+      where('status', '==', 'waiting'),
+      where('language', '==', filters.language)
     );
 
     // Subscribe to real-time updates
@@ -107,7 +108,10 @@ const TopicSelector = ({
       snapshot.docs.forEach(doc => {
         const room = doc.data();
         if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
-          topicCounts[room.topic] += 1;
+          // Only count rooms that match the current filters
+          if (filters.continent === 'any' || room.continent === filters.continent) {
+            topicCounts[room.topic] += 1;
+          }
         }
       });
 
@@ -115,7 +119,7 @@ const TopicSelector = ({
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, filters.language, filters.continent]);
 
   const filteredTopics = TOPICS.filter((topic) =>
     topic.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -155,7 +159,7 @@ const TopicSelector = ({
             {onlineUsers[topic.id] > 0 && (
               <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium 
                 ${selectedTopic === topic.id ? 'bg-white text-primary' : 'bg-primary text-white'}`}>
-                {onlineUsers[topic.id]} online
+                {onlineUsers[topic.id]} waiting
               </div>
             )}
           </button>
