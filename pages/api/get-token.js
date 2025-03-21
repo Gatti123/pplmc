@@ -1,4 +1,5 @@
-import twilio from 'twilio';
+import { AccessToken } from 'twilio';
+const VideoGrant = AccessToken.VideoGrant;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -8,42 +9,45 @@ export default async function handler(req, res) {
   const { identity, room } = req.body;
 
   if (!identity || !room) {
-    return res.status(400).json({ error: 'Identity and room are required' });
+    return res.status(400).json({ error: 'Missing identity or room' });
   }
 
   try {
+    // Load environment variables
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioApiKey = process.env.TWILIO_API_KEY;
     const twilioApiSecret = process.env.TWILIO_API_SECRET;
 
     if (!twilioAccountSid || !twilioApiKey || !twilioApiSecret) {
-      return res.status(500).json({ error: 'Twilio credentials not configured' });
+      throw new Error('Missing Twilio credentials');
     }
 
-    const AccessToken = twilio.jwt.AccessToken;
-    const VideoGrant = AccessToken.VideoGrant;
+    // Create Video Grant
+    const videoGrant = new VideoGrant({
+      room: room
+    });
 
     // Create an access token
     const token = new AccessToken(
       twilioAccountSid,
       twilioApiKey,
       twilioApiSecret,
-      { identity }
+      { identity: identity }
     );
 
-    // Grant access to Video
-    const videoGrant = new VideoGrant({
-      room,
-    });
-
+    // Add the video grant to the token
     token.addGrant(videoGrant);
 
-    // Serialize the token as a JWT
-    const jwt = token.toJwt();
-
-    return res.status(200).json({ token: jwt });
+    // Serialize the token to a JWT string
+    console.log('Generated token for room:', room, 'and identity:', identity);
+    
+    return res.status(200).json({ 
+      token: token.toJwt(),
+      identity: identity,
+      room: room 
+    });
   } catch (error) {
     console.error('Error generating token:', error);
-    return res.status(500).json({ error: 'Failed to generate token' });
+    return res.status(500).json({ error: 'Could not generate token' });
   }
 } 

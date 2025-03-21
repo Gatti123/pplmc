@@ -215,23 +215,66 @@ const VideoChat = () => {
           room: roomId,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to get token');
+      }
       
       const { token } = await response.json();
       console.log('Received Twilio token, connecting to room...');
       
-      // Connect to Twilio room
+      // Connect to Twilio room with more detailed options
       const twilioRoom = await connect(token, {
         name: roomId,
         audio: true,
-        video: { width: 640, height: 480 },
+        video: { 
+          width: 640,
+          height: 480,
+          frameRate: 24,
+          name: 'camera'
+        },
         dominantSpeaker: true,
+        networkQuality: {
+          local: 1,
+          remote: 1
+        },
+        bandwidthProfile: {
+          video: {
+            mode: 'collaboration',
+            maxTracks: 10,
+            dominantSpeakerPriority: 'standard'
+          }
+        },
+        maxAudioBitrate: 16000,
+        preferredVideoCodecs: [{ codec: 'VP8', simulcast: true }]
       });
       
-      console.log('Connected to Twilio room successfully');
+      console.log('Connected to Twilio room successfully:', twilioRoom.name);
       setRoom(twilioRoom);
       setIsInRoom(true);
       setIsFinding(false);
       setIsTimerActive(true);
+      
+      // Handle room events
+      twilioRoom.on('participantConnected', (participant) => {
+        console.log('Participant connected:', participant.identity);
+        toast.success(`${participant.identity} joined the discussion!`);
+      });
+
+      twilioRoom.on('participantDisconnected', (participant) => {
+        console.log('Participant disconnected:', participant.identity);
+        toast.info(`${participant.identity} left the discussion.`);
+      });
+
+      twilioRoom.on('disconnected', (room, error) => {
+        if (error) {
+          console.error('Room disconnected with error:', error);
+          toast.error('Disconnected from room due to error.');
+        }
+        setRoom(null);
+        setIsInRoom(false);
+        setIsTimerActive(false);
+      });
       
       toast.success('Connected to discussion!');
     } catch (error) {
