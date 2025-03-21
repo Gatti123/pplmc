@@ -1,3 +1,4 @@
+import dynamic from 'next/dynamic';
 import { useState, useEffect, useRef, useContext } from 'react';
 import { UserContext } from '../../context/UserContext';
 import { db } from '../../lib/firebase';
@@ -50,9 +51,16 @@ const VideoChat = () => {
 
     const initClient = async () => {
       if (typeof window !== 'undefined') {
-        const agoraClient = createClient();
-        if (agoraClient && mounted) {
-          setClient(agoraClient);
+        try {
+          const agoraClient = await createClient();
+          if (agoraClient && mounted) {
+            setClient(agoraClient);
+          }
+        } catch (error) {
+          console.error('Error initializing Agora client:', error);
+          if (mounted) {
+            toast.error('Failed to initialize video chat. Please try again.');
+          }
         }
       }
     };
@@ -396,4 +404,7 @@ const VideoChat = () => {
   );
 };
 
-export default VideoChat; 
+// Export the component with SSR disabled
+export default dynamic(() => Promise.resolve(VideoChat), {
+  ssr: false
+}); 
