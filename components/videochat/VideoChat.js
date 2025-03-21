@@ -10,6 +10,7 @@ import TopicSelector from './TopicSelector';
 import DiscussionTimer from './DiscussionTimer';
 import { v4 as uuidv4 } from 'uuid';
 import { config, createClient, createMicrophoneAndCameraTracks, getAgoraToken } from '../../lib/agora';
+import RatingModal from './RatingModal';
 
 const VideoChat = () => {
   const { user } = useContext(UserContext);
@@ -32,6 +33,8 @@ const VideoChat = () => {
   const [roomDetails, setRoomDetails] = useState(null);
   const [users, setUsers] = useState([]);
   const [start, setStart] = useState(false);
+  const [showRating, setShowRating] = useState(false);
+  const [partnerToRate, setPartnerToRate] = useState(null);
   
   const roomUnsubscribeRef = useRef(null);
 
@@ -290,6 +293,13 @@ const VideoChat = () => {
   const leaveDiscussion = async () => {
     try {
       if (roomDetails) {
+        // Find the partner to rate
+        const partner = roomDetails.participants.find(p => p.uid !== user.uid);
+        if (partner) {
+          setPartnerToRate(partner.uid);
+          setShowRating(true);
+        }
+
         // Update room status in Firebase
         const roomRef = doc(db, 'rooms', roomDetails.id);
         await updateDoc(roomRef, {
@@ -428,6 +438,14 @@ const VideoChat = () => {
           )}
         </div>
       )}
+
+      {/* Rating Modal */}
+      <RatingModal
+        isOpen={showRating}
+        onClose={() => setShowRating(false)}
+        roomDetails={roomDetails}
+        partnerId={partnerToRate}
+      />
     </div>
   );
 };
