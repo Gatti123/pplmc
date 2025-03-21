@@ -21,7 +21,7 @@ const VideoChat = () => {
   const [isInRoom, setIsInRoom] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState('');
   const [filters, setFilters] = useState({
-    language: navigator.language.split('-')[0] || 'en',
+    language: 'en',
     continent: 'any',
   });
   const [role, setRole] = useState('participant');
@@ -34,24 +34,53 @@ const VideoChat = () => {
   
   const roomUnsubscribeRef = useRef(null);
 
-  // Initialize Agora client
+  // Set default language based on browser
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const agoraClient = createClient();
-      if (agoraClient) {
-        setClient(agoraClient);
-      }
+      setFilters(prev => ({
+        ...prev,
+        language: navigator.language.split('-')[0] || 'en'
+      }));
     }
+  }, []);
+
+  // Initialize Agora client
+  useEffect(() => {
+    let mounted = true;
+
+    const initClient = async () => {
+      if (typeof window !== 'undefined') {
+        const agoraClient = createClient();
+        if (agoraClient && mounted) {
+          setClient(agoraClient);
+        }
+      }
+    };
+
+    initClient();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Initialize tracks
   useEffect(() => {
+    let mounted = true;
+
     const initTracks = async () => {
       if (typeof window !== 'undefined' && !tracks) {
-        const { tracks: newTracks, ready: isReady } = await createMicrophoneAndCameraTracks();
-        if (isReady && newTracks) {
-          setTracks(newTracks);
-          setReady(true);
+        try {
+          const { tracks: newTracks, ready: isReady } = await createMicrophoneAndCameraTracks();
+          if (mounted && isReady && newTracks) {
+            setTracks(newTracks);
+            setReady(true);
+          }
+        } catch (error) {
+          console.error('Error initializing tracks:', error);
+          if (mounted) {
+            toast.error('Failed to access camera or microphone. Please check your permissions.');
+          }
         }
       }
     };
@@ -59,6 +88,7 @@ const VideoChat = () => {
     initTracks();
 
     return () => {
+      mounted = false;
       if (tracks) {
         tracks.forEach((track) => {
           track.close();
@@ -67,60 +97,70 @@ const VideoChat = () => {
     };
   }, []);
 
+  // Handle Agora events and room connection
   useEffect(() => {
-    if (!client || !room) return;
+    if (!client || !room || !user) return;
+
+    let mounted = true;
 
     const init = async () => {
-      client.on("user-published", async (user, mediaType) => {
-        await client.subscribe(user, mediaType);
-        if (mediaType === "video") {
-          setUsers((prevUsers) => {
-            return [...prevUsers, user];
-          });
-        }
-        if (mediaType === "audio") {
-          user.audioTrack.play();
-        }
-      });
-
-      client.on("user-unpublished", (user, mediaType) => {
-        if (mediaType === "audio") {
-          if (user.audioTrack) user.audioTrack.stop();
-        }
-        if (mediaType === "video") {
-          setUsers((prevUsers) => {
-            return prevUsers.filter((User) => User.uid !== user.uid);
-          });
-        }
-      });
-
-      client.on("user-left", (user) => {
-        setUsers((prevUsers) => {
-          return prevUsers.filter((User) => User.uid !== user.uid);
-        });
-        toast.info(`A participant has left the discussion.`);
-      });
-
       try {
+        // Setup event handlers
+        client.on("user-published", async (user, mediaType) => {
+          if (!mounted) return;
+          await client.subscribe(user, mediaType);
+          
+          if (mediaType === "video") {
+            setUsers((prevUsers) => [...prevUsers.filter(u => u.uid !== user.uid), user]);
+          }
+          if (mediaType === "audio") {
+            user.audioTrack?.play();
+          }
+        });
+
+        client.on("user-unpublished", (user, mediaType) => {
+          if (!mounted) return;
+          if (mediaType === "audio") {
+            user.audioTrack?.stop();
+          }
+          if (mediaType === "video") {
+            setUsers((prevUsers) => prevUsers.filter((User) => User.uid !== user.uid));
+          }
+        });
+
+        client.on("user-left", (user) => {
+          if (!mounted) return;
+          setUsers((prevUsers) => prevUsers.filter((User) => User.uid !== user.uid));
+          toast.info(`A participant has left the discussion.`);
+        });
+
+        // Join the channel
         await client.join(config.appId, room, config.token, user.uid);
+        console.log('Successfully joined Agora channel:', room);
+
+        // Publish local tracks if available
         if (tracks) {
           await client.publish(tracks);
           setStart(true);
+          console.log('Local tracks published successfully');
         }
       } catch (error) {
-        console.error("Error joining room:", error);
-        toast.error("Failed to join the discussion room.");
+        console.error("Error in Agora initialization:", error);
+        if (mounted) {
+          toast.error("Failed to join the discussion room. Please try again.");
+        }
       }
     };
 
     init();
 
     return () => {
+      mounted = false;
       if (client) {
         client.removeAllListeners();
       }
     };
-  }, [client, room, tracks, user?.uid]);
+  }, [client, room, tracks, user]);
 
   // Find a discussion room
   const findDiscussion = async () => {
@@ -311,7 +351,7 @@ const VideoChat = () => {
             {ready && tracks && (
               <div className="w-full h-64 bg-black rounded-lg overflow-hidden">
                 <div ref={(ref) => {
-                  if (ref && tracks) {
+                  if (ref && tracks[1]) {
                     tracks[1].play(ref);
                   }
                 }} className="w-full h-full"></div>
