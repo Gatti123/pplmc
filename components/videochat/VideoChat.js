@@ -51,8 +51,9 @@ const VideoChat = () => {
     
     try {
       // Check for available rooms with the same topic and filters
+      const roomsRef = collection(db, 'rooms');
       const roomsQuery = query(
-        collection(db, 'rooms'),
+        roomsRef,
         where('topic', '==', selectedTopic),
         where('status', '==', 'waiting'),
         where('language', '==', filters.language)
@@ -63,6 +64,7 @@ const VideoChat = () => {
       
       let roomRef;
       let roomId;
+      let roomData;
       
       // If there's an available room, join it
       if (!querySnapshot.empty) {
@@ -70,75 +72,117 @@ const VideoChat = () => {
         const existingRoom = querySnapshot.docs[0];
         roomRef = existingRoom.ref;
         roomId = existingRoom.id;
+        roomData = existingRoom.data();
         
-        // Update room with new participant
-        await updateDoc(roomRef, {
-          status: 'active',
-          participants: arrayUnion({
-            uid: user.uid,
-            displayName: user.displayName,
-            role: role,
-          }),
-        });
-        console.log('Joined existing room:', existingRoom.id);
-      } else {
-        console.log('Creating new room');
-        // Create a new room if no matching room is found
-        const newRoomData = {
-          topic: selectedTopic,
-          createdAt: serverTimestamp(),
-          createdBy: user.uid,
-          participants: [{
-            uid: user.uid,
-            displayName: user.displayName,
-            role: role,
-          }],
-          status: 'waiting',
-          language: filters.language,
-          continent: filters.continent,
-        };
-        
-        roomRef = await addDoc(collection(db, 'rooms'), newRoomData);
-        roomId = roomRef.id;
-        console.log('Created new room:', roomRef.id);
+        // Make sure we're not joining our own room
+        if (roomData.createdBy === user.uid) {
+          console.log('Found own room, creating new one instead');
+          // Create new room below
+        } else {
+          // Update room with new participant
+          await updateDoc(roomRef, {
+            status: 'active',
+            participants: arrayUnion({
+              uid: user.uid,
+              displayName: user.displayName,
+              role: role,
+              joinedAt: new Date().toISOString()
+            }),
+            updatedAt: serverTimestamp()
+          });
+          console.log('Joined existing room:', existingRoom.id);
+          
+          setRoom({ id: roomId, data: roomData });
+          setupRoomListener(roomRef);
+          return;
+        }
       }
 
-      setRoom({ id: roomId });
+      // Create a new room if no matching room is found or if we found our own room
+      console.log('Creating new room');
+      const newRoomData = {
+        topic: selectedTopic,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: user.uid,
+        participants: [{
+          uid: user.uid,
+          displayName: user.displayName,
+          role: role,
+          joinedAt: new Date().toISOString()
+        }],
+        status: 'waiting',
+        language: filters.language,
+        continent: filters.continent,
+      };
       
-      // Listen for room updates
-      const unsubscribe = onSnapshot(roomRef, async (snapshot) => {
-        const data = snapshot.data();
-        console.log('Room update:', { 
-          roomId: roomRef.id, 
-          status: data.status, 
-          participantsCount: data.participants?.length 
-        });
-        
-        // If room is active and has two participants, initialize WebRTC
-        if (data.status === 'active' && data.participants?.length === 2 && !isInRoom) {
-          setIsInRoom(true);
-          setIsFinding(false);
-          initializeWebRTC(roomId);
-          
-          // Update user's recent discussions
-          await updateDoc(doc(db, 'users', user.uid), {
-            recentDiscussions: arrayUnion({
-              roomId: roomId,
-              topic: data.topic,
-              timestamp: new Date().toISOString(),
-              participants: data.participants,
-            }),
-          });
-        }
-      });
+      roomRef = await addDoc(roomsRef, newRoomData);
+      roomId = roomRef.id;
+      console.log('Created new room:', roomRef.id);
+
+      setRoom({ id: roomId, data: newRoomData });
+      setupRoomListener(roomRef);
       
-      roomUnsubscribeRef.current = unsubscribe;
-      toast.info('Looking for a discussion partner...');
     } catch (error) {
       console.error('Error finding discussion:', error);
       toast.error('Error finding discussion. Please try again.');
       setIsFinding(false);
     }
+  };
+
+  const setupRoomListener = (roomRef) => {
+    // Clean up any existing listener
+    if (roomUnsubscribeRef.current) {
+      roomUnsubscribeRef.current();
+    }
+
+    // Set up new listener
+    const unsubscribe = onSnapshot(roomRef, async (snapshot) => {
+      const data = snapshot.data();
+      console.log('Room update received:', data);
+
+      if (!data) {
+        console.log('Room was deleted or does not exist');
+        handleLeaveDiscussion();
+        return;
+      }
+
+      // If room is active and has two participants, initialize WebRTC
+      if (data.status === 'active' && data.participants?.length === 2) {
+        console.log('Room is active with 2 participants, initializing WebRTC');
+        if (!isInRoom) {
+          setIsInRoom(true);
+          setIsFinding(false);
+          initializeWebRTC(snapshot.id);
+          
+          // Update user's recent discussions
+          try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              recentDiscussions: arrayUnion({
+                roomId: snapshot.id,
+                topic: data.topic,
+                timestamp: new Date().toISOString(),
+                participants: data.participants,
+              }),
+            });
+            console.log('Updated user recent discussions');
+          } catch (error) {
+            console.error('Error updating recent discussions:', error);
+          }
+        }
+      } else if (data.status === 'ended') {
+        console.log('Room ended, cleaning up');
+        handleLeaveDiscussion();
+      }
+    }, (error) => {
+      console.error('Error in room listener:', error);
+      toast.error('Lost connection to room. Please try again.');
+      handleLeaveDiscussion();
+    });
+    
+    roomUnsubscribeRef.current = unsubscribe;
+    console.log('Room listener set up');
   };
 
   const initializeWebRTC = async (roomId) => {
