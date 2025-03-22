@@ -1,504 +1,153 @@
-import dynamic from 'next/dynamic';
-import { useState, useEffect, useRef, useContext } from 'react';
-import { UserContext } from '../../context/UserContext';
-import { db } from '../../lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, onSnapshot, query, where, serverTimestamp, arrayUnion, getDocs } from 'firebase/firestore';
-import { toast } from 'react-toastify';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
+import WebRTCManager from '../../lib/webrtc';
 import VideoControls from './VideoControls';
-import TextChat from './TextChat';
-import TopicSelector from './TopicSelector';
-import DiscussionTimer from './DiscussionTimer';
-import { v4 as uuidv4 } from 'uuid';
-import { config, createClient, createMicrophoneAndCameraTracks, getAgoraToken } from '../../lib/agora';
-import RatingModal from './RatingModal';
+import { db } from '../../lib/firebase';
+import { useAuth } from '../../contexts/AuthContext';
 
-const VideoChat = () => {
-  const { user } = useContext(UserContext);
-  const [room, setRoom] = useState(null);
-  const [participants, setParticipants] = useState([]);
-  const [client, setClient] = useState(null);
-  const [ready, setReady] = useState(false);
-  const [tracks, setTracks] = useState(null);
-  const [isFinding, setIsFinding] = useState(false);
-  const [isInRoom, setIsInRoom] = useState(false);
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [filters, setFilters] = useState({
-    language: 'en',
-    continent: 'any',
-  });
-  const [role, setRole] = useState('participant');
-  const [timerDuration, setTimerDuration] = useState(10);
-  const [isTimerActive, setIsTimerActive] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [roomDetails, setRoomDetails] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [start, setStart] = useState(false);
-  const [showRating, setShowRating] = useState(false);
-  const [partnerToRate, setPartnerToRate] = useState(null);
-  
-  const roomUnsubscribeRef = useRef(null);
+const VideoChat = ({ room, onLeave }) => {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [isConnected, setIsConnected] = useState(false);
+  const [participants, setParticipants] = useState(new Map());
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const webrtcRef = useRef(null);
+  const localVideoRef = useRef(null);
 
-  // Set default language based on browser
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setFilters(prev => ({
-        ...prev,
-        language: navigator.language.split('-')[0] || 'en'
-      }));
-    }
-  }, []);
+    if (!user || !room) return;
 
-  // Initialize Agora client
-  useEffect(() => {
-    let mounted = true;
-    let retryCount = 0;
-    const maxRetries = 3;
-
-    const initClient = async () => {
-      if (typeof window !== 'undefined') {
-        try {
-          const agoraClient = await createClient();
-          if (agoraClient && mounted) {
-            // Add connection state change handler
-            agoraClient.on('connection-state-change', (curState, prevState, reason) => {
-              console.log('Connection state changed:', prevState, '->', curState, 'reason:', reason);
-              
-              if (curState === 'DISCONNECTED' && reason !== 'LEAVE') {
-                if (retryCount < maxRetries) {
-                  retryCount++;
-                  console.log(`Attempting to reconnect (${retryCount}/${maxRetries})...`);
-                  setTimeout(() => {
-                    if (room) {
-                      initializeAgoraConnection(agoraClient);
-                    }
-                  }, 2000 * retryCount); // Exponential backoff
-                } else {
-                  toast.error('Connection lost. Please try rejoining the discussion.');
-                }
-              }
-            });
-
-            setClient(agoraClient);
-          }
-        } catch (error) {
-          console.error('Error initializing Agora client:', error);
-          if (mounted) {
-            toast.error('Failed to initialize video chat. Please check your internet connection and try again.');
-          }
-        }
-      }
-    };
-
-    initClient();
-
-    return () => {
-      mounted = false;
-      retryCount = 0;
-    };
-  }, []);
-
-  // Function to initialize Agora connection
-  const initializeAgoraConnection = async (agoraClient) => {
-    if (!agoraClient || !room || !user) return;
-
-    try {
-      // Get token for the room
-      const token = await getAgoraToken(room, user.uid);
-      
-      // Join the channel with token
-      await agoraClient.join(config.appId, room, token, user.uid);
-      console.log('Successfully joined Agora channel:', room);
-
-      // Publish local tracks if available
-      if (tracks) {
-        await agoraClient.publish(tracks);
-        setStart(true);
-        console.log('Local tracks published successfully');
-      }
-    } catch (error) {
-      console.error("Error in Agora initialization:", error);
-      toast.error("Failed to join the discussion room. Please try again.");
-      
-      // Handle specific error cases
-      if (error.code === 'INVALID_TOKEN') {
-        toast.error("Session expired. Please rejoin the discussion.");
-        leaveDiscussion();
-      } else if (error.code === 'NETWORK_ERROR') {
-        toast.error("Network connection issues. Please check your internet connection.");
-      }
-    }
-  };
-
-  // Initialize tracks
-  useEffect(() => {
-    let mounted = true;
-
-    const initTracks = async () => {
-      if (typeof window !== 'undefined' && !tracks) {
-        try {
-          const { tracks: newTracks, ready: isReady } = await createMicrophoneAndCameraTracks();
-          if (mounted && isReady && newTracks) {
-            setTracks(newTracks);
-            setReady(true);
-          }
-        } catch (error) {
-          console.error('Error initializing tracks:', error);
-          if (mounted) {
-            toast.error('Failed to access camera or microphone. Please check your permissions.');
-          }
-        }
-      }
-    };
-
-    initTracks();
-
-    return () => {
-      mounted = false;
-      if (tracks) {
-        tracks.forEach((track) => {
-          track.close();
-        });
-      }
-    };
-  }, []);
-
-  // Handle Agora events and room connection
-  useEffect(() => {
-    if (!client || !room || !user) return;
-
-    let mounted = true;
-
-    const init = async () => {
+    const initializeWebRTC = async () => {
       try {
-        // Setup event handlers
-        client.on("user-published", async (user, mediaType) => {
-          if (!mounted) return;
-          try {
-            await client.subscribe(user, mediaType);
-            
-            if (mediaType === "video") {
-              setUsers((prevUsers) => [...prevUsers.filter(u => u.uid !== user.uid), user]);
-            }
-            if (mediaType === "audio") {
-              user.audioTrack?.play();
-            }
-          } catch (error) {
-            console.error("Error subscribing to user:", error);
-            toast.error("Failed to connect to another participant's stream.");
-          }
-        });
+        // Create WebRTC manager instance
+        const webrtc = new WebRTCManager(room.id, user.uid, db);
+        webrtcRef.current = webrtc;
 
-        client.on("user-unpublished", (user, mediaType) => {
-          if (!mounted) return;
-          if (mediaType === "audio") {
-            user.audioTrack?.stop();
-          }
-          if (mediaType === "video") {
-            setUsers((prevUsers) => prevUsers.filter((User) => User.uid !== user.uid));
-          }
-        });
-
-        client.on("user-left", (user) => {
-          if (!mounted) return;
-          setUsers((prevUsers) => prevUsers.filter((User) => User.uid !== user.uid));
-          toast.info(`A participant has left the discussion.`);
-        });
-
-        // Initialize connection
-        await initializeAgoraConnection(client);
-      } catch (error) {
-        console.error("Error in Agora initialization:", error);
-        if (mounted) {
-          toast.error("Failed to join the discussion room. Please try again.");
+        // Initialize local media
+        const localStream = await webrtc.initializeMedia(true, true);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream;
         }
+
+        // Handle remote participants
+        webrtc.onTrack((userId, stream) => {
+          setParticipants(prev => new Map(prev).set(userId, stream));
+        });
+
+        webrtc.onParticipantLeft((userId) => {
+          setParticipants(prev => {
+            const updated = new Map(prev);
+            updated.delete(userId);
+            return updated;
+          });
+        });
+
+        // Start listening for connections
+        webrtc.listenForSignalingMessages();
+        setIsConnected(true);
+
+        // Update room status in Firestore
+        await db.collection('rooms').doc(room.id).collection('participants').doc(user.uid).set({
+          userId: user.uid,
+          joinedAt: Date.now(),
+        });
+
+      } catch (error) {
+        console.error('Error initializing WebRTC:', error);
+        alert('Failed to initialize video chat. Please check your camera and microphone permissions.');
       }
     };
 
-    init();
+    initializeWebRTC();
 
     return () => {
-      mounted = false;
-      if (client) {
-        client.removeAllListeners();
+      if (webrtcRef.current) {
+        webrtcRef.current.disconnect();
       }
     };
-  }, [client, room, tracks, user]);
+  }, [user, room]);
 
-  // Find a discussion room
-  const findDiscussion = async () => {
-    if (!user || !selectedTopic) {
-      toast.error('Please select a topic first.');
-      return;
-    }
-    
-    setIsFinding(true);
-    console.log('Starting search with filters:', { topic: selectedTopic, language: filters.language, role });
-    
+  const handleLeaveDiscussion = async () => {
     try {
-      // Check for available rooms with the same topic and filters
-      const roomsQuery = query(
-        collection(db, 'rooms'),
-        where('topic', '==', selectedTopic),
-        where('status', '==', 'waiting'),
-        where('language', '==', filters.language)
-      );
-
-      const querySnapshot = await getDocs(roomsQuery);
-      console.log('Found waiting rooms:', querySnapshot.size);
-      
-      let roomRef;
-      let roomId;
-      
-      // If there's an available room, join it
-      if (!querySnapshot.empty) {
-        console.log('Found existing room to join');
-        const existingRoom = querySnapshot.docs[0];
-        roomRef = doc(db, 'rooms', existingRoom.id);
-        roomId = existingRoom.data().roomId;
-        
-        // Update room with new participant
-        await updateDoc(roomRef, {
-          status: 'active',
-          participants: arrayUnion({
-            uid: user.uid,
-            displayName: user.displayName,
-            role: role,
-          }),
-        });
-        console.log('Joined existing room:', existingRoom.id);
-      } else {
-        console.log('Creating new room');
-        // Create a new room if no matching room is found
-        roomId = uuidv4();
-        const newRoomData = {
-          roomId,
-          topic: selectedTopic,
-          createdAt: serverTimestamp(),
-          createdBy: user.uid,
-          participants: [
-            {
-              uid: user.uid,
-              displayName: user.displayName,
-              role: role,
-            },
-          ],
-          status: 'waiting',
-          language: filters.language,
-          continent: filters.continent,
-          timerDuration: timerDuration,
-          isTimerActive: false,
-          messages: [],
-        };
-        
-        roomRef = await addDoc(collection(db, 'rooms'), newRoomData);
-        console.log('Created new room:', roomRef.id);
+      if (webrtcRef.current) {
+        await webrtcRef.current.disconnect();
       }
 
-      setRoom(roomId);
-      
-      // Listen for room updates
-      roomUnsubscribeRef.current = onSnapshot(doc(db, 'rooms', roomRef.id), async (snapshot) => {
-        const data = snapshot.data();
-        console.log('Room update:', { 
-          roomId: roomRef.id, 
-          status: data.status, 
-          participantsCount: data.participants?.length,
-          participants: data.participants 
-        });
-        
-        setRoomDetails({ id: snapshot.id, ...data });
-        
-        // If room is active and has two participants, set isInRoom
-        if (data.status === 'active' && data.participants?.length === 2 && !isInRoom) {
-          setIsInRoom(true);
-          setIsFinding(false);
-          
-          // Update user's recent discussions
-          await updateDoc(doc(db, 'users', user.uid), {
-            recentDiscussions: arrayUnion({
-              roomId: data.roomId,
-              topic: data.topic,
-              timestamp: new Date().toISOString(),
-              participants: data.participants,
-            }),
-          });
-        }
+      // Remove participant from room
+      await db.collection('rooms').doc(room.id).collection('participants').doc(user.uid).delete();
 
-        // Update messages
-        if (data.messages) {
-          setMessages(data.messages);
-        }
-      });
-      
-      toast.info('Looking for a discussion partner...');
-    } catch (error) {
-      console.error('Error finding discussion:', error);
-      toast.error('Error finding discussion. Please try again.');
-      setIsFinding(false);
-    }
-  };
-
-  const leaveDiscussion = async () => {
-    try {
-      if (roomDetails) {
-        // Find the partner to rate
-        const partner = roomDetails.participants.find(p => p.uid !== user.uid);
-        if (partner) {
-          setPartnerToRate(partner.uid);
-          setShowRating(true);
-        }
-
-        // Update room status in Firebase
-        const roomRef = doc(db, 'rooms', roomDetails.id);
-        await updateDoc(roomRef, {
-          status: 'ended',
-          endedAt: serverTimestamp(),
-        });
-
-        // Leave Agora channel
-        if (client) {
-          await client.leave();
-          client.removeAllListeners();
-        }
-        
-        if (tracks) {
-          tracks.forEach((track) => {
-            track.close();
-          });
-        }
-
-        // Reset state
-        setUsers([]);
-        setStart(false);
-        setRoom(null);
-        setIsInRoom(false);
-        setIsFinding(false);
-        setMessages([]);
-        setRoomDetails(null);
-        
-        if (roomUnsubscribeRef.current) {
-          roomUnsubscribeRef.current();
-          roomUnsubscribeRef.current = null;
-        }
-        
-        toast.success('Left the discussion successfully.');
+      if (onLeave) {
+        onLeave();
       }
     } catch (error) {
       console.error('Error leaving discussion:', error);
-      toast.error('Error leaving discussion. Please try again.');
     }
   };
 
-  const sendMessage = async (text) => {
-    if (!roomDetails || !user) return;
-
+  const toggleVideo = async () => {
     try {
-      const newMessage = {
-        text,
-        sender: {
-          uid: user.uid,
-          displayName: user.displayName,
-        },
-        timestamp: serverTimestamp(),
-      };
-
-      const roomRef = doc(db, 'rooms', roomDetails.id);
-      await updateDoc(roomRef, {
-        messages: arrayUnion(newMessage),
-      });
+      await webrtcRef.current?.toggleVideo(!isVideoEnabled);
+      setIsVideoEnabled(!isVideoEnabled);
     } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error('Failed to send message. Please try again.');
+      console.error('Error toggling video:', error);
     }
   };
 
-  const handleTimerEnd = async () => {
-    if (!roomDetails) return;
-
+  const toggleAudio = async () => {
     try {
-      const roomRef = doc(db, 'rooms', roomDetails.id);
-      await updateDoc(roomRef, {
-        isTimerActive: false,
-      });
-      toast.info('Discussion time has ended.');
+      await webrtcRef.current?.toggleAudio(!isAudioEnabled);
+      setIsAudioEnabled(!isAudioEnabled);
     } catch (error) {
-      console.error('Error updating timer status:', error);
+      console.error('Error toggling audio:', error);
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {!isInRoom ? (
-        <TopicSelector
-          onTopicSelect={setSelectedTopic}
-          selectedTopic={selectedTopic}
-          filters={filters}
-          setFilters={setFilters}
-          role={role}
-          setRole={setRole}
-          onFindPartner={findDiscussion}
-          isFinding={isFinding}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-          <div className="relative">
-            {ready && tracks && (
-              <div className="w-full h-64 bg-black rounded-lg overflow-hidden">
-                <div ref={(ref) => {
-                  if (ref && tracks[1]) {
-                    tracks[1].play(ref);
-                  }
-                }} className="w-full h-full"></div>
-              </div>
-            )}
+    <div className="flex flex-col h-full bg-gray-900">
+      <div className="flex-1 grid grid-cols-2 gap-4 p-4">
+        {/* Local video */}
+        <div className="relative">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover rounded-lg"
+          />
+          <div className="absolute bottom-2 left-2 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
+            You
           </div>
-          
-          {users.length > 0 && users.map((user) => (
-            <div key={user.uid} className="w-full h-64 bg-black rounded-lg overflow-hidden">
-              <div ref={(ref) => {
-                if (ref && user.videoTrack) {
-                  user.videoTrack.play(ref);
-                }
-              }} className="w-full h-full"></div>
-            </div>
-          ))}
-
-          <div className="col-span-2">
-            <VideoControls
-              onLeaveDiscussion={leaveDiscussion}
-              tracks={tracks}
-            />
-          </div>
-
-          {roomDetails && (
-            <>
-              <DiscussionTimer
-                duration={roomDetails.timerDuration}
-                isActive={roomDetails.isTimerActive}
-                onTimerEnd={handleTimerEnd}
-              />
-              <TextChat
-                messages={messages}
-                onSendMessage={sendMessage}
-                participants={roomDetails.participants}
-              />
-            </>
-          )}
         </div>
-      )}
 
-      {/* Rating Modal */}
-      <RatingModal
-        isOpen={showRating}
-        onClose={() => setShowRating(false)}
-        roomDetails={roomDetails}
-        partnerId={partnerToRate}
+        {/* Remote videos */}
+        {Array.from(participants.entries()).map(([userId, stream]) => (
+          <div key={userId} className="relative">
+            <video
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover rounded-lg"
+              ref={el => {
+                if (el) el.srcObject = stream;
+              }}
+            />
+            <div className="absolute bottom-2 left-2 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
+              Participant
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Video controls */}
+      <VideoControls
+        isVideoEnabled={isVideoEnabled}
+        isAudioEnabled={isAudioEnabled}
+        onToggleVideo={toggleVideo}
+        onToggleAudio={toggleAudio}
+        onLeave={handleLeaveDiscussion}
       />
     </div>
   );
 };
 
-// Export the component with SSR disabled
-export default dynamic(() => Promise.resolve(VideoChat), {
-  ssr: false
-}); 
+export default VideoChat; 
