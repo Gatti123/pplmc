@@ -1,13 +1,11 @@
-import { useState, useContext } from 'react';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
-import { UserContext } from '../../context/UserContext';
+import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
 import { useAuth } from '@/contexts';
-import { useRouter } from 'next/router';
+import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 const SignUpSchema = Yup.object().shape({
   displayName: Yup.string().required('Required'),
@@ -20,33 +18,22 @@ const SignUpSchema = Yup.object().shape({
     .required('Required'),
 });
 
-const SignUp = () => {
-  const router = useRouter();
-  const { signInWithGoogle } = useAuth();
+const SignUp = ({ onToggleForm }) => {
   const [loading, setLoading] = useState(false);
-  const { setUser } = useContext(UserContext);
+  const router = useRouter();
+  const { signInWithGoogle, signUpWithEmail } = useAuth();
 
   const handleSignUp = async (values, { setSubmitting, resetForm }) => {
     setLoading(true);
     try {
-      // Create user with email and password
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        values.email,
-        values.password
-      );
-      
-      // Update profile with display name
-      await updateProfile(userCredential.user, {
-        displayName: values.displayName,
-      });
+      const user = await signUpWithEmail(values.email, values.password, values.displayName);
       
       // Create user document in Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
-        uid: userCredential.user.uid,
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
         displayName: values.displayName,
         email: values.email,
-        photoURL: userCredential.user.photoURL || '',
+        photoURL: user.photoURL || '',
         createdAt: new Date().toISOString(),
         preferences: {
           language: navigator.language || 'en',
@@ -55,9 +42,9 @@ const SignUp = () => {
         recentDiscussions: [],
       });
       
-      setUser(userCredential.user);
       toast.success('Account created successfully!');
       resetForm();
+      router.push('/');
     } catch (error) {
       console.error('Error signing up', error);
       toast.error(error.message);

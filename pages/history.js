@@ -1,12 +1,12 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { UserContext } from '../context/UserContext';
-import { db } from '../lib/firebase';
+import { useAuth } from '@/contexts';
+import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { FaVideo, FaCalendarAlt, FaUsers } from 'react-icons/fa';
 
 const HistoryPage = () => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const router = useRouter();
   const [recentDiscussions, setRecentDiscussions] = useState([]);
   const [loading, setLoading] = useState(true);
