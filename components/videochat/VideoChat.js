@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
-import WebRTCManager from '../../lib/webrtc';
+import WebRTCManager from '@/lib/webrtc';
 import VideoControls from './VideoControls';
-import { db } from '../../lib/firebase';
-import { useAuth } from '../../contexts/AuthContext';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts';
 import TopicSelector from './TopicSelector';
 import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
