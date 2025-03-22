@@ -1,10 +1,10 @@
-import { useEffect, useContext } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { UserContext } from '../context/UserContext';
+import { useAuth } from '../contexts/AuthContext';
 import VideoChat from '../components/videochat/VideoChat';
 
 const VideoChatPage = () => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
