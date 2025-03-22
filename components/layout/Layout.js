@@ -1,11 +1,10 @@
 import Navbar from './Navbar';
 import Footer from './Footer';
-import { useContext } from 'react';
-import { UserContext } from '../../context/UserContext';
+import { useAuth } from '@/contexts';
 import { useRouter } from 'next/router';
 
 const Layout = ({ children }) => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const router = useRouter();
   
   // Don't show navbar and footer on auth page

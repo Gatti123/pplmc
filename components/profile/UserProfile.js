@@ -1,9 +1,9 @@
-import { useState, useEffect, useContext } from 'react';
-import { UserContext } from '../../context/UserContext';
-import { db } from '../../lib/firebase';
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { FaStar, FaLanguage, FaHistory, FaAward } from 'react-icons/fa';
+import { useAuth } from '@/contexts';
 
 const LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -19,8 +19,8 @@ const LANGUAGES = [
 ];
 
 const UserProfile = () => {
-  const { user } = useContext(UserContext);
-  const [profile, setProfile] = useState(null);
+  const { user } = useAuth();
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editedLanguages, setEditedLanguages] = useState([]);
@@ -33,7 +33,7 @@ const UserProfile = () => {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          setProfile(userData);
+          setUserProfile(userData);
           setEditedLanguages(userData.languages || []);
         }
       } catch (error) {
@@ -52,7 +52,7 @@ const UserProfile = () => {
       await updateDoc(doc(db, 'users', user.uid), {
         languages: editedLanguages,
       });
-      setProfile(prev => ({ ...prev, languages: editedLanguages }));
+      setUserProfile(prev => ({ ...prev, languages: editedLanguages }));
       setEditing(false);
       toast.success('Profile updated successfully');
     } catch (error) {
@@ -69,7 +69,7 @@ const UserProfile = () => {
     );
   }
 
-  if (!profile) {
+  if (!userProfile) {
     return (
       <div className="text-center py-8">
         <p className="text-gray-500">Profile not found</p>
@@ -84,11 +84,11 @@ const UserProfile = () => {
         <div className="bg-[#8B5CF6] bg-opacity-90 p-6 text-white">
           <div className="flex items-center space-x-4">
             <div className="w-20 h-20 rounded-full bg-white text-[#8B5CF6] flex items-center justify-center text-2xl font-bold transform transition-transform hover:scale-110">
-              {profile.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
+              {userProfile.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase()}
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{profile.displayName || 'Anonymous'}</h1>
-              <p className="text-white text-opacity-90">Member since {new Date(profile.createdAt).toLocaleDateString()}</p>
+              <h1 className="text-2xl font-bold">{userProfile.displayName || 'Anonymous'}</h1>
+              <p className="text-white text-opacity-90">Member since {new Date(userProfile.createdAt).toLocaleDateString()}</p>
             </div>
           </div>
         </div>
@@ -98,7 +98,7 @@ const UserProfile = () => {
           <div className="bg-gray-50 rounded-lg p-4 text-center transform transition-all hover:scale-105 hover:shadow-md">
             <FaStar className="w-8 h-8 text-yellow-400 mx-auto mb-2 animate-pulse" />
             <div className="text-2xl font-bold text-[#8B5CF6]">
-              {profile.rating || '4.5'}/5.0
+              {userProfile.rating || '4.5'}/5.0
             </div>
             <div className="text-gray-600">Average Rating</div>
           </div>
@@ -106,7 +106,7 @@ const UserProfile = () => {
           <div className="bg-gray-50 rounded-lg p-4 text-center transform transition-all hover:scale-105 hover:shadow-md">
             <FaHistory className="w-8 h-8 text-blue-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-[#8B5CF6]">
-              {profile.recentDiscussions?.length || 0}
+              {userProfile.recentDiscussions?.length || 0}
             </div>
             <div className="text-gray-600">Discussions</div>
           </div>
@@ -114,7 +114,7 @@ const UserProfile = () => {
           <div className="bg-gray-50 rounded-lg p-4 text-center transform transition-all hover:scale-105 hover:shadow-md">
             <FaAward className="w-8 h-8 text-green-400 mx-auto mb-2" />
             <div className="text-2xl font-bold text-[#8B5CF6]">
-              {profile.level || 1}
+              {userProfile.level || 1}
             </div>
             <div className="text-gray-600">Level</div>
           </div>
@@ -167,7 +167,7 @@ const UserProfile = () => {
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {(profile.languages || []).map(langCode => (
+              {(userProfile.languages || []).map(langCode => (
                 <span
                   key={langCode}
                   className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-700 transition-all hover:scale-105"
@@ -175,7 +175,7 @@ const UserProfile = () => {
                   {LANGUAGES.find(l => l.code === langCode)?.name || langCode}
                 </span>
               ))}
-              {(profile.languages || []).length === 0 && (
+              {(userProfile.languages || []).length === 0 && (
                 <span className="text-gray-500">No languages specified</span>
               )}
             </div>
@@ -185,9 +185,9 @@ const UserProfile = () => {
         {/* Recent Discussions */}
         <div className="p-6 border-t">
           <h2 className="text-xl font-semibold mb-4 text-[#8B5CF6]">Recent Discussions</h2>
-          {profile.recentDiscussions?.length > 0 ? (
+          {userProfile.recentDiscussions?.length > 0 ? (
             <div className="space-y-4">
-              {profile.recentDiscussions.map((discussion, index) => (
+              {userProfile.recentDiscussions.map((discussion, index) => (
                 <div
                   key={index}
                   className="bg-gray-50 rounded-lg p-4 transform transition-all hover:scale-[1.02] hover:shadow-md"

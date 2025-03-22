@@ -6,19 +6,23 @@ import { UserContext } from '../../context/UserContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
+import { useAuth } from '@/contexts';
+import { useRouter } from 'next/router';
 
 const SignUpSchema = Yup.object().shape({
   displayName: Yup.string().required('Required'),
   email: Yup.string().email('Invalid email').required('Required'),
   password: Yup.string()
-    .min(6, 'Password must be at least 6 characters')
+    .min(6, 'Too Short!')
     .required('Required'),
   confirmPassword: Yup.string()
     .oneOf([Yup.ref('password'), null], 'Passwords must match')
     .required('Required'),
 });
 
-const SignUp = ({ onToggleForm }) => {
+const SignUp = () => {
+  const router = useRouter();
+  const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const { setUser } = useContext(UserContext);
 
@@ -60,6 +64,17 @@ const SignUp = ({ onToggleForm }) => {
     } finally {
       setLoading(false);
       setSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      await signInWithGoogle();
+      router.push('/');
+      toast.success('Successfully signed up!');
+    } catch (error) {
+      console.error('Error signing up with Google:', error);
+      toast.error('Failed to sign up with Google');
     }
   };
 
@@ -140,10 +155,10 @@ const SignUp = ({ onToggleForm }) => {
       <p className="mt-6 text-center text-sm text-gray-600">
         Already have an account?{' '}
         <button
-          onClick={onToggleForm}
+          onClick={handleGoogleSignUp}
           className="text-primary hover:underline"
         >
-          Sign In
+          Sign In with Google
         </button>
       </p>
     </div>

@@ -1,21 +1,20 @@
-import { useContext, useState } from 'react';
 import Link from 'next/link';
-import { UserContext } from '../../context/UserContext';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { useRouter } from 'next/router';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { FaUser, FaSignOutAlt, FaHome, FaVideo, FaHistory, FaBars, FaTimes } from 'react-icons/fa';
+import { useAuth } from '@/contexts';
 
 const Navbar = () => {
-  const { user, setUser } = useContext(UserContext);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
-      setUser(null);
+      await logout();
       toast.success('Successfully signed out!');
-      setIsMobileMenuOpen(false);
+      setIsOpen(false);
     } catch (error) {
       console.error('Error signing out', error);
       toast.error(error.message);
@@ -70,17 +69,17 @@ const Navbar = () => {
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={() => setIsOpen(!isOpen)}
               className="text-secondary hover:text-white p-2 rounded-md focus:outline-none"
             >
-              {isMobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+              {isOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
             </button>
           </div>
         </div>
       </div>
 
       {/* Mobile menu */}
-      <div className={`md:hidden ${isMobileMenuOpen ? 'block' : 'hidden'}`}>
+      <div className={`md:hidden ${isOpen ? 'block' : 'hidden'}`}>
         <div className="px-2 pt-2 pb-3 space-y-1 bg-primary-dark">
           {user ? (
             <>
