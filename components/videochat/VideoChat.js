@@ -47,18 +47,23 @@ const VideoChat = () => {
     }
     
     setIsFinding(true);
-    console.log('Starting search with filters:', { topic: selectedTopic, language: filters.language, role });
+    console.log('Starting search with filters:', { topic: selectedTopic, language: filters.language, continent: filters.continent, role });
     
     try {
       // Check for available rooms with the same topic and filters
       const roomsRef = collection(db, 'rooms');
-      const roomsQuery = query(
-        roomsRef,
+      const queryConditions = [
         where('topic', '==', selectedTopic),
         where('status', '==', 'waiting'),
-        where('language', '==', filters.language)
-      );
-
+        where('language', '==', filters.language),
+      ];
+      
+      // Add continent filter if not set to 'any'
+      if (filters.continent !== 'any') {
+        queryConditions.push(where('continent', '==', filters.continent));
+      }
+      
+      const roomsQuery = query(roomsRef, ...queryConditions);
       const querySnapshot = await getDocs(roomsQuery);
       console.log('Found waiting rooms:', querySnapshot.size);
       
