@@ -1,11 +1,11 @@
 import { useContext } from 'react';
 import { useRouter } from 'next/router';
-import { UserContext } from '../context/UserContext';
+import { useAuth } from '@/contexts';
 import Link from 'next/link';
 import { FaVideo, FaArrowRight } from 'react-icons/fa';
 
 const Home = () => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleStartDiscussion = () => {

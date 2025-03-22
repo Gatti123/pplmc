@@ -1,7 +1,7 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { UserContext } from '../../context/UserContext';
+import { useAuth } from '@/contexts';
 
 const TOPICS = [
   { id: 'politics', name: 'Politics', icon: '🏛️' },
@@ -79,7 +79,7 @@ const TopicSelector = ({
   onFindPartner,
   isFinding 
 }) => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [showStarters, setShowStarters] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState({});

@@ -1,13 +1,10 @@
-import { useState, useContext } from 'react';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '../../lib/firebase';
-import { UserContext } from '../../context/UserContext';
+import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { toast } from 'react-toastify';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '@/contexts';
-import { useRouter } from 'next/router';
 
 const SignInSchema = Yup.object().shape({
   email: Yup.string().email('Invalid email').required('Required'),
@@ -16,21 +13,16 @@ const SignInSchema = Yup.object().shape({
 
 const SignIn = ({ onToggleForm }) => {
   const [loading, setLoading] = useState(false);
-  const { setUser } = useContext(UserContext);
   const router = useRouter();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithEmail } = useAuth();
 
   const handleEmailSignIn = async (values, { setSubmitting, resetForm }) => {
     setLoading(true);
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        values.email,
-        values.password
-      );
-      setUser(userCredential.user);
+      await signInWithEmail(values.email, values.password);
       toast.success('Successfully signed in!');
       resetForm();
+      router.push('/');
     } catch (error) {
       console.error('Error signing in with email and password', error);
       toast.error(error.message);

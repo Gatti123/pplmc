@@ -1,10 +1,10 @@
-import { useEffect, useContext } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AuthPage from '../components/auth/AuthPage';
-import { UserContext } from '../context/UserContext';
+import { useAuth } from '@/contexts';
 
 const Auth = () => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {

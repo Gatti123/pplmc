@@ -1,10 +1,10 @@
-import { useEffect, useContext } from 'react';
+import { useEffect } from 'react';
+import { useAuth } from '@/contexts';
 import { useRouter } from 'next/router';
-import { UserContext } from '../context/UserContext';
 import UserProfile from '../components/profile/UserProfile';
 
 const ProfilePage = () => {
-  const { user } = useContext(UserContext);
+  const { user } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -16,8 +16,8 @@ const ProfilePage = () => {
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-white to-purple-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#8B5CF6]"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
