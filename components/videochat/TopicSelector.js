@@ -199,62 +199,66 @@ const TopicSelector = ({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-        {/* Language Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Language
-          </label>
-          <select
-            value={filters.language}
-            onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-            className="input-field w-full bg-white"
-          >
-            {LANGUAGES.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Filters Section */}
+      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-700 mb-4">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Language Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Language
+            </label>
+            <select
+              value={filters.language}
+              onChange={(e) => setFilters({ ...filters, language: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* Continent Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Region
-          </label>
-          <select
-            value={filters.continent}
-            onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
-            className="input-field w-full bg-white"
-          >
-            {CONTINENTS.map((continent) => (
-              <option key={continent.code} value={continent.code}>
-                {continent.name}
-              </option>
-            ))}
-          </select>
-        </div>
+          {/* Continent Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Region
+            </label>
+            <select
+              value={filters.continent}
+              onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              {CONTINENTS.map((continent) => (
+                <option key={continent.code} value={continent.code}>
+                  {continent.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* Role Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Role
-          </label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="input-field w-full bg-white"
-          >
-            {ROLES.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          {/* Role Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Role
+            </label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              {ROLES.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
-      
+
       {showStarters && selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
         <div className="mt-4 p-4 bg-secondary rounded-lg">
           <h3 className="font-semibold mb-2">Conversation Starters:</h3>
@@ -266,7 +270,7 @@ const TopicSelector = ({
         </div>
       )}
 
-      <div className="flex justify-center">
+      <div className="flex justify-center mt-6">
         <button
           onClick={onFindPartner}
           disabled={!selectedTopic || isFinding}
