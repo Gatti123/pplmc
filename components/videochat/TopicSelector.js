@@ -88,28 +88,23 @@ const TopicSelector = ({
   useEffect(() => {
     if (!user) return;
 
-    // Create a query for active rooms
+    // Create a query for waiting rooms only
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', 'in', ['waiting', 'active']), // Include both waiting and active rooms
+      where('status', '==', 'waiting'), // Only count waiting rooms
       where('language', '==', filters.language)
     );
 
     // Subscribe to real-time updates
     const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
       const topicCounts = {};
-      const countedUsers = new Set(); // Track unique users
       
       // Initialize counts for all topics
       TOPICS.forEach(topic => {
         topicCounts[topic.id] = 0;
       });
 
-      // Get current timestamp
-      const now = new Date().getTime();
-      const ACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-      // Count all users in rooms for each topic
+      // Count users in waiting rooms for each topic
       snapshot.docs.forEach(doc => {
         const room = doc.data();
         if (!room.topic || !topicCounts.hasOwnProperty(room.topic)) return;
@@ -117,24 +112,14 @@ const TopicSelector = ({
         // Only count rooms that match the current filters
         if (filters.continent !== 'any' && room.continent !== filters.continent) return;
 
-        // Check each participant in the room
-        if (room.participants && Array.isArray(room.participants)) {
-          room.participants.forEach(participant => {
-            // Skip if we've already counted this user
-            if (countedUsers.has(participant.uid)) return;
+        // Don't count our own rooms
+        if (room.createdBy === user.uid) return;
 
-            // Check if participant is active (joined within last 5 minutes)
-            const joinedAt = new Date(participant.joinedAt).getTime();
-            if (now - joinedAt <= ACTIVE_THRESHOLD) {
-              topicCounts[room.topic]++;
-              countedUsers.add(participant.uid);
-            }
-          });
-        }
+        // Increment count for this topic
+        topicCounts[room.topic]++;
       });
 
-      console.log('[TopicSelector] Online users count:', {
-        totalUnique: countedUsers.size,
+      console.log('[TopicSelector] Available partners:', {
         byTopic: topicCounts,
         timestamp: new Date().toISOString()
       });
@@ -200,18 +185,18 @@ const TopicSelector = ({
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="filter-section">
+        <h3 className="text-lg font-semibold text-gray-700 mb-4">Discussion Settings</h3>
+        <div className="filter-grid">
           {/* Language Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="filter-label">
               Language
             </label>
             <select
               value={filters.language}
               onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              className="filter-select"
             >
               {LANGUAGES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -223,13 +208,13 @@ const TopicSelector = ({
 
           {/* Continent Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="filter-label">
               Region
             </label>
             <select
               value={filters.continent}
               onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              className="filter-select"
             >
               {CONTINENTS.map((continent) => (
                 <option key={continent.code} value={continent.code}>
@@ -241,13 +226,13 @@ const TopicSelector = ({
 
           {/* Role Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="filter-label">
               Role
             </label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              className="filter-select"
             >
               {ROLES.map((r) => (
                 <option key={r.id} value={r.id}>
