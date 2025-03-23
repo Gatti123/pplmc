@@ -5,7 +5,7 @@ import VideoControls from './VideoControls';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts';
 import TopicSelector from './TopicSelector';
-import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc, writeBatch, getDoc, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc, writeBatch, getDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 import DeviceCheck from './DeviceCheck';
@@ -32,6 +32,8 @@ const VideoChat = () => {
   const webrtcRef = useRef(null);
   const localVideoRef = useRef(null);
   const roomUnsubscribeRef = useRef(null);
+  const webrtcManager = useRef(null);
+  const remoteStreamRef = useRef(null);
 
   // Set default language based on browser
   useEffect(() => {
@@ -61,10 +63,15 @@ const VideoChat = () => {
     }
     
     setIsFinding(true);
-    console.log('Starting search with filters:', { topic: selectedTopic, language: filters.language, continent: filters.continent, role });
+    console.log('Starting search with filters:', { 
+      topic: selectedTopic, 
+      language: filters.language, 
+      continent: filters.continent, 
+      role,
+      userId: user.uid 
+    });
     
     try {
-      // Check for available rooms with the same topic and filters
       const roomsRef = collection(db, 'rooms');
       const queryConditions = [
         where('topic', '==', selectedTopic),
@@ -72,7 +79,6 @@ const VideoChat = () => {
         where('language', '==', filters.language),
       ];
       
-      // Add continent filter if not set to 'any'
       if (filters.continent !== 'any') {
         queryConditions.push(where('continent', '==', filters.continent));
       }
@@ -85,7 +91,7 @@ const VideoChat = () => {
       let roomId;
       let roomData;
       
-      // If there's an available room, join it
+      // If there's an available room, join it using a transaction
       if (!querySnapshot.empty) {
         console.log('Found existing room to join');
         const existingRoom = querySnapshot.docs[0];
@@ -96,21 +102,32 @@ const VideoChat = () => {
         // Make sure we're not joining our own room
         if (roomData.createdBy === user.uid) {
           console.log('Found own room, creating new one instead');
-          // Create new room below
         } else {
-          // Update room with new participant
-          await updateDoc(roomRef, {
-            status: 'active',
-            participants: arrayUnion({
-              uid: user.uid,
-              displayName: user.displayName,
-              role: role,
-              joinedAt: new Date().toISOString()
-            }),
-            updatedAt: serverTimestamp()
+          // Use transaction to update room
+          await runTransaction(db, async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists()) {
+              throw new Error('Room no longer exists');
+            }
+            
+            const currentData = roomDoc.data();
+            if (currentData.status !== 'waiting') {
+              throw new Error('Room is no longer available');
+            }
+            
+            transaction.update(roomRef, {
+              status: 'active',
+              participants: arrayUnion({
+                uid: user.uid,
+                displayName: user.displayName,
+                role: role,
+                joinedAt: new Date().toISOString()
+              }),
+              updatedAt: serverTimestamp()
+            });
           });
-          console.log('Joined existing room:', existingRoom.id);
           
+          console.log('Successfully joined room:', roomId);
           setRoom({ id: roomId, data: roomData });
           setupRoomListener(roomRef);
           return;
@@ -137,14 +154,14 @@ const VideoChat = () => {
       
       roomRef = await addDoc(roomsRef, newRoomData);
       roomId = roomRef.id;
-      console.log('Created new room:', roomRef.id);
+      console.log('Created new room:', roomId);
 
       setRoom({ id: roomId, data: newRoomData });
       setupRoomListener(roomRef);
       
     } catch (error) {
       console.error('Error finding discussion:', error);
-      toast.error('Error finding discussion. Please try again.');
+      toast.error(error.message || 'Error finding discussion. Please try again.');
       setIsFinding(false);
     }
   };
@@ -181,7 +198,7 @@ const VideoChat = () => {
           setConnectionState('connecting');
           
           try {
-            await initializeWebRTC(snapshot.id);
+            await initializeWebRTC(otherParticipant.uid);
             
             // Update user's recent discussions
             const userRef = doc(db, 'users', user.uid);
@@ -212,77 +229,85 @@ const VideoChat = () => {
     roomUnsubscribeRef.current = unsubscribe;
   };
 
-  const initializeWebRTC = async (roomId) => {
+  const initializeWebRTC = async (remoteUserId) => {
     try {
-      setConnectionState('initializing');
+      console.log('[VideoChat] Initializing WebRTC for remote user:', remoteUserId);
       
-      // Create WebRTC manager instance
-      const webrtc = new WebRTCManager(roomId, user.uid, db);
-      webrtcRef.current = webrtc;
-
-      // Initialize local media with error handling
-      try {
-        const localStream = await webrtc.initializeMedia(isVideoEnabled, isAudioEnabled);
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStream;
-        }
-      } catch (mediaError) {
-        console.error('Media initialization error:', mediaError);
-        toast.error(mediaError.message || 'Failed to access camera/microphone');
-        handleLeaveDiscussion();
+      if (!selectedDevices) {
+        console.error('[VideoChat] No devices selected');
+        toast.error('Please select your camera and microphone first');
         return;
       }
 
-      // Handle remote participants
-      webrtc.onTrack((userId, stream) => {
-        console.log('Remote track received from:', userId);
-        setParticipants(prev => new Map(prev).set(userId, stream));
-        setConnectionState('connected');
-        setIsConnected(true);
-      });
+      if (!selectedDevices.video || !selectedDevices.audio) {
+        console.error('[VideoChat] Missing required devices:', selectedDevices);
+        toast.error('Both camera and microphone are required');
+        return;
+      }
 
-      webrtc.onParticipantLeft((userId) => {
-        console.log('Participant left:', userId);
-        setParticipants(prev => {
-          const updated = new Map(prev);
-          updated.delete(userId);
-          return updated;
+      if (!webrtcManager.current) {
+        console.log('[VideoChat] Creating new WebRTC manager');
+        webrtcManager.current = new WebRTCManager(room.id, user.uid, db);
+        
+        webrtcManager.current.onTrack((track, stream) => {
+          console.log('[VideoChat] Received remote track:', {
+            kind: track.kind,
+            enabled: track.enabled,
+            id: track.id
+          });
+          remoteStreamRef.current = stream;
         });
-        toast.info('Your discussion partner has left the chat');
-      });
 
-      // Handle connection state changes
-      webrtc.onConnectionStateChange((userId, state) => {
-        console.log('Connection state change:', { userId, state });
-        switch (state) {
-          case 'checking':
-            setConnectionState('connecting');
-            break;
-          case 'connected':
-            setConnectionState('connected');
-            setIsConnected(true);
-            toast.success('Connected successfully!');
-            break;
-          case 'disconnected':
-            setConnectionState('reconnecting');
-            toast.warning('Connection lost. Attempting to reconnect...');
-            break;
-          case 'failed':
-            setConnectionState('reconnecting');
-            toast.error('Connection failed. Trying to restore...');
-            break;
-          case 'closed':
-            setConnectionState('disconnected');
-            setIsConnected(false);
-            handleLeaveDiscussion();
-            break;
-        }
+        webrtcManager.current.onParticipantLeft((participantId) => {
+          console.log('[VideoChat] Participant left:', participantId);
+          remoteStreamRef.current = null;
+        });
+
+        webrtcManager.current.onConnectionStateChange((participantId, state) => {
+          console.log('[VideoChat] Connection state changed:', {
+            participantId,
+            state
+          });
+          setConnectionState(state);
+        });
+      }
+
+      console.log('[VideoChat] Initializing media with devices:', selectedDevices);
+      await webrtcManager.current.initializeMedia(selectedDevices);
+      console.log('[VideoChat] Media initialized successfully');
+
+      console.log('[VideoChat] Creating peer connection');
+      await webrtcManager.current.createPeerConnection(remoteUserId);
+      console.log('[VideoChat] Peer connection created successfully');
+
+      // Create and send offer
+      console.log('[VideoChat] Creating offer');
+      const offer = await webrtcManager.current.createOffer(remoteUserId);
+      console.log('[VideoChat] Offer created successfully');
+      
+      await webrtcManager.current.sendSignalingMessage(remoteUserId, {
+        type: 'offer',
+        offer,
       });
+      console.log('[VideoChat] Offer sent successfully');
 
     } catch (error) {
-      console.error('Error initializing WebRTC:', error);
-      toast.error('Failed to initialize video chat. Please try again.');
-      handleLeaveDiscussion();
+      console.error('[VideoChat] Error initializing WebRTC:', error);
+      toast.error(error.message || 'Failed to initialize video chat');
+      
+      // Попытка восстановления
+      if (error.message.includes('Failed to construct') || error.message.includes('InvalidStateError')) {
+        console.log('[VideoChat] Attempting to recover from WebRTC error');
+        webrtcManager.current = null; // Сбрасываем менеджер
+        remoteStreamRef.current = null;
+        setConnectionState('disconnected');
+        
+        // Даем время на очистку ресурсов
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Пробуем инициализировать заново
+        initializeWebRTC(remoteUserId);
+      }
     }
   };
 
@@ -348,9 +373,9 @@ const VideoChat = () => {
   const handleLeaveDiscussion = async () => {
     try {
       // Clean up WebRTC
-      if (webrtcRef.current) {
-        webrtcRef.current.cleanup();
-        webrtcRef.current = null;
+      if (webrtcManager.current) {
+        webrtcManager.current.cleanup();
+        webrtcManager.current = null;
       }
 
       // Clean up room listener
@@ -398,7 +423,7 @@ const VideoChat = () => {
 
   const toggleVideo = async () => {
     try {
-      await webrtcRef.current?.toggleVideo(!isVideoEnabled);
+      await webrtcManager.current?.toggleVideo(!isVideoEnabled);
       setIsVideoEnabled(!isVideoEnabled);
     } catch (error) {
       console.error('Error toggling video:', error);
@@ -407,7 +432,7 @@ const VideoChat = () => {
 
   const toggleAudio = async () => {
     try {
-      await webrtcRef.current?.toggleAudio(!isAudioEnabled);
+      await webrtcManager.current?.toggleAudio(!isAudioEnabled);
       setIsAudioEnabled(!isAudioEnabled);
     } catch (error) {
       console.error('Error toggling audio:', error);
@@ -417,8 +442,8 @@ const VideoChat = () => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (webrtcRef.current) {
-        webrtcRef.current.disconnect();
+      if (webrtcManager.current) {
+        webrtcManager.current.disconnect();
       }
       if (roomUnsubscribeRef.current) {
         roomUnsubscribeRef.current();
@@ -452,13 +477,13 @@ const VideoChat = () => {
             </div>
 
             {/* Remote videos */}
-            {Array.from(participants.entries()).map(([userId, stream]) => (
-              <div key={userId} className="relative">
+            {remoteStreamRef.current && (
+              <div className="relative">
                 <video
                   autoPlay
                   playsInline
                   className="w-full h-[360px] bg-gray-900 rounded-lg object-cover"
-                  srcObject={stream}
+                  srcObject={remoteStreamRef.current}
                 />
                 <div className="absolute bottom-4 left-4">
                   <span className="px-2 py-1 bg-gray-900 text-white rounded text-sm">
@@ -466,7 +491,7 @@ const VideoChat = () => {
                   </span>
                 </div>
               </div>
-            ))}
+            )}
           </div>
 
           {/* Video controls */}
