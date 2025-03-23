@@ -228,9 +228,27 @@ const VideoChat = () => {
           updated.delete(userId);
           return updated;
         });
-        if (updated.size === 0) {
-          setConnectionState('disconnected');
-          setIsConnected(false);
+      });
+
+      // Handle connection state changes
+      webrtc.onConnectionStateChange((userId, state) => {
+        console.log('Connection state change:', { userId, state });
+        switch (state) {
+          case 'checking':
+            setConnectionState('connecting');
+            break;
+          case 'connected':
+            setConnectionState('connected');
+            setIsConnected(true);
+            break;
+          case 'disconnected':
+          case 'failed':
+            setConnectionState('reconnecting');
+            break;
+          case 'closed':
+            setConnectionState('disconnected');
+            setIsConnected(false);
+            break;
         }
       });
 
@@ -422,8 +440,19 @@ const VideoChat = () => {
                 <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
                   <div className="text-white text-center">
                     <div className="mb-2">
-                      {connectionState === 'connecting' && 'Connecting...'}
+                      {connectionState === 'connecting' && (
+                        <div className="flex flex-col items-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                          <div>Connecting...</div>
+                        </div>
+                      )}
                       {connectionState === 'initializing' && 'Initializing...'}
+                      {connectionState === 'reconnecting' && (
+                        <div className="flex flex-col items-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
+                          <div>Reconnecting...</div>
+                        </div>
+                      )}
                       {connectionState === 'failed' && 'Connection failed'}
                     </div>
                     {connectionState === 'failed' && (
@@ -464,6 +493,7 @@ const VideoChat = () => {
             onToggleVideo={toggleVideo}
             onToggleAudio={toggleAudio}
             onLeave={handleLeaveDiscussion}
+            connectionState={connectionState}
           />
         </div>
       )}
