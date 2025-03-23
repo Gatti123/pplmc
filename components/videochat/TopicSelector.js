@@ -208,7 +208,7 @@ const TopicSelector = ({
           <select
             value={filters.language}
             onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-            className="input-field w-full bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="input-field w-full bg-white"
           >
             {LANGUAGES.map((lang) => (
               <option key={lang.code} value={lang.code}>
@@ -226,7 +226,7 @@ const TopicSelector = ({
           <select
             value={filters.continent}
             onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
-            className="input-field w-full bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="input-field w-full bg-white"
           >
             {CONTINENTS.map((continent) => (
               <option key={continent.code} value={continent.code}>
@@ -244,7 +244,7 @@ const TopicSelector = ({
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="input-field w-full bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="input-field w-full bg-white"
           >
             {ROLES.map((r) => (
               <option key={r.id} value={r.id}>
