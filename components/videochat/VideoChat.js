@@ -20,6 +20,7 @@ const VideoChat = () => {
   const [isFinding, setIsFinding] = useState(false);
   const [isInRoom, setIsInRoom] = useState(false);
   const [room, setRoom] = useState(null);
+  const [connectionState, setConnectionState] = useState('disconnected');
   const [filters, setFilters] = useState({
     language: 'en',
     continent: 'any',
@@ -136,12 +137,10 @@ const VideoChat = () => {
   };
 
   const setupRoomListener = (roomRef) => {
-    // Clean up any existing listener
     if (roomUnsubscribeRef.current) {
       roomUnsubscribeRef.current();
     }
 
-    // Set up new listener
     const unsubscribe = onSnapshot(roomRef, async (snapshot) => {
       const data = snapshot.data();
       console.log('Room update received:', data);
@@ -152,16 +151,26 @@ const VideoChat = () => {
         return;
       }
 
+      // Update room state
+      setRoom({ id: snapshot.id, data });
+
       // If room is active and has two participants, initialize WebRTC
       if (data.status === 'active' && data.participants?.length === 2) {
-        console.log('Room is active with 2 participants, initializing WebRTC');
-        if (!isInRoom) {
+        console.log('Room is active with 2 participants');
+        
+        // Find the other participant
+        const otherParticipant = data.participants.find(p => p.uid !== user.uid);
+        
+        if (!isInRoom && otherParticipant) {
+          console.log('Initializing WebRTC with other participant:', otherParticipant);
           setIsInRoom(true);
           setIsFinding(false);
-          initializeWebRTC(snapshot.id);
+          setConnectionState('connecting');
           
-          // Update user's recent discussions
           try {
+            await initializeWebRTC(snapshot.id);
+            
+            // Update user's recent discussions
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
               recentDiscussions: arrayUnion({
@@ -171,13 +180,14 @@ const VideoChat = () => {
                 participants: data.participants,
               }),
             });
-            console.log('Updated user recent discussions');
           } catch (error) {
-            console.error('Error updating recent discussions:', error);
+            console.error('Error initializing WebRTC:', error);
+            toast.error('Failed to establish video connection. Please try again.');
+            handleLeaveDiscussion();
           }
         }
-      } else if (data.status === 'ended') {
-        console.log('Room ended, cleaning up');
+      } else if (data.status === 'ended' || data.participants?.length < 2) {
+        console.log('Room ended or participant left');
         handleLeaveDiscussion();
       }
     }, (error) => {
@@ -187,55 +197,87 @@ const VideoChat = () => {
     });
     
     roomUnsubscribeRef.current = unsubscribe;
-    console.log('Room listener set up');
   };
 
   const initializeWebRTC = async (roomId) => {
     try {
+      setConnectionState('initializing');
+      
       // Create WebRTC manager instance
       const webrtc = new WebRTCManager(roomId, user.uid, db);
       webrtcRef.current = webrtc;
 
       // Initialize local media
-      const localStream = await webrtc.initializeMedia(true, true);
+      const localStream = await webrtc.initializeMedia(isVideoEnabled, isAudioEnabled);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStream;
       }
 
       // Handle remote participants
       webrtc.onTrack((userId, stream) => {
+        console.log('Remote track received from:', userId);
         setParticipants(prev => new Map(prev).set(userId, stream));
+        setConnectionState('connected');
+        setIsConnected(true);
       });
 
       webrtc.onParticipantLeft((userId) => {
+        console.log('Participant left:', userId);
         setParticipants(prev => {
           const updated = new Map(prev);
           updated.delete(userId);
           return updated;
         });
+        if (updated.size === 0) {
+          setConnectionState('disconnected');
+          setIsConnected(false);
+        }
       });
 
       // Start listening for connections
       webrtc.listenForSignalingMessages();
-      setIsConnected(true);
+      
+      // Set timeout for connection
+      setTimeout(() => {
+        if (connectionState === 'connecting') {
+          console.log('Connection timeout, retrying...');
+          handleLeaveDiscussion();
+          toast.error('Connection timeout. Please try again.');
+        }
+      }, 30000); // 30 seconds timeout
+      
     } catch (error) {
       console.error('Error initializing WebRTC:', error);
+      setConnectionState('failed');
       toast.error('Failed to initialize video chat. Please check your camera and microphone permissions.');
+      throw error;
     }
   };
 
   const handleLeaveDiscussion = async () => {
     try {
+      setConnectionState('disconnecting');
+      
       if (webrtcRef.current) {
         await webrtcRef.current.disconnect();
       }
 
       if (room) {
-        // Update room status
-        await updateDoc(doc(db, 'rooms', room.id), {
-          status: 'ended',
-          endedAt: serverTimestamp(),
-        });
+        const roomRef = doc(db, 'rooms', room.id);
+        const roomData = (await roomRef.get()).data();
+        
+        if (roomData) {
+          // Remove current user from participants
+          const updatedParticipants = roomData.participants.filter(
+            p => p.uid !== user.uid
+          );
+          
+          await updateDoc(roomRef, {
+            participants: updatedParticipants,
+            status: updatedParticipants.length < 2 ? 'ended' : 'active',
+            endedAt: serverTimestamp(),
+          });
+        }
       }
 
       // Cleanup
@@ -249,6 +291,8 @@ const VideoChat = () => {
       setIsFinding(false);
       setParticipants(new Map());
       setIsConnected(false);
+      setConnectionState('disconnected');
+      
     } catch (error) {
       console.error('Error leaving discussion:', error);
       toast.error('Error leaving discussion. Please try again.');
@@ -313,6 +357,25 @@ const VideoChat = () => {
               <div className="absolute bottom-2 left-2 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
                 You
               </div>
+              {connectionState !== 'connected' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="text-white text-center">
+                    <div className="mb-2">
+                      {connectionState === 'connecting' && 'Connecting...'}
+                      {connectionState === 'initializing' && 'Initializing...'}
+                      {connectionState === 'failed' && 'Connection failed'}
+                    </div>
+                    {connectionState === 'failed' && (
+                      <button
+                        onClick={() => initializeWebRTC(room.id)}
+                        className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Remote videos */}
