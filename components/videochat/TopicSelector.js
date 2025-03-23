@@ -167,16 +167,16 @@ const TopicSelector = ({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Language Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Language
           </label>
           <select
             value={filters.language}
             onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-            className="input-field w-full"
+            className="input-field w-full bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           >
             {LANGUAGES.map((lang) => (
               <option key={lang.code} value={lang.code}>
@@ -188,13 +188,13 @@ const TopicSelector = ({
 
         {/* Continent Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Region
           </label>
           <select
             value={filters.continent}
             onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
-            className="input-field w-full"
+            className="input-field w-full bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           >
             {CONTINENTS.map((continent) => (
               <option key={continent.code} value={continent.code}>
@@ -206,13 +206,13 @@ const TopicSelector = ({
 
         {/* Role Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Role
           </label>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="input-field w-full"
+            className="input-field w-full bg-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           >
             {ROLES.map((r) => (
               <option key={r.id} value={r.id}>
