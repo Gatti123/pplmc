@@ -118,20 +118,30 @@ const TopicSelector = ({
         if (filters.continent !== 'any' && room.continent !== filters.continent) return;
 
         // Check each participant in the room
-        (room.participants || []).forEach(participant => {
-          // Skip if we've already counted this user
-          if (countedUsers.has(participant.uid)) return;
+        if (room.participants && Array.isArray(room.participants)) {
+          room.participants.forEach(participant => {
+            // Skip if we've already counted this user
+            if (countedUsers.has(participant.uid)) return;
 
-          // Check if participant is active (joined within last 5 minutes)
-          const joinedAt = new Date(participant.joinedAt).getTime();
-          if (now - joinedAt <= ACTIVE_THRESHOLD) {
-            topicCounts[room.topic]++;
-            countedUsers.add(participant.uid);
-          }
-        });
+            // Check if participant is active (joined within last 5 minutes)
+            const joinedAt = new Date(participant.joinedAt).getTime();
+            if (now - joinedAt <= ACTIVE_THRESHOLD) {
+              topicCounts[room.topic]++;
+              countedUsers.add(participant.uid);
+            }
+          });
+        }
+      });
+
+      console.log('[TopicSelector] Online users count:', {
+        totalUnique: countedUsers.size,
+        byTopic: topicCounts,
+        timestamp: new Date().toISOString()
       });
 
       setOnlineUsers(topicCounts);
+    }, (error) => {
+      console.error('[TopicSelector] Error in room listener:', error);
     });
 
     return () => unsubscribe();

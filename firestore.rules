@@ -3,7 +3,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Allow authenticated users to read and write to rooms
     match /rooms/{roomId} {
-      allow read, write: if request.auth != null;
+      allow read: if true; // Allow reading room status without authentication
+      allow write: if request.auth != null;
       
       // Allow access to signaling subcollection
       match /signaling/{docId} {
@@ -29,6 +30,12 @@ service cloud.firestore {
     // Allow users to read and write their own data
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow reading user status
+    match /userStatus/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
   }
 } 
