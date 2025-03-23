@@ -5,7 +5,7 @@ import VideoControls from './VideoControls';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts';
 import TopicSelector from './TopicSelector';
-import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc, writeBatch } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 
@@ -254,6 +254,65 @@ const VideoChat = () => {
     }
   };
 
+  // Add cleanup function for old rooms
+  const cleanupOldRooms = async () => {
+    try {
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+      const oldRoomsQuery = query(
+        collection(db, 'rooms'),
+        where('createdAt', '<=', oneHourAgo),
+        where('status', 'in', ['ended', 'waiting'])
+      );
+
+      const snapshot = await getDocs(oldRoomsQuery);
+      const batch = writeBatch(db);
+      
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error cleaning up old rooms:', error);
+    }
+  };
+
+  // Add cleanup function for old signaling messages
+  const cleanupOldSignaling = async (roomId) => {
+    try {
+      const fiveMinutesAgo = new Date();
+      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+
+      const oldSignalingQuery = query(
+        collection(db, 'rooms', roomId, 'signaling'),
+        where('timestamp', '<=', fiveMinutesAgo)
+      );
+
+      const snapshot = await getDocs(oldSignalingQuery);
+      const batch = writeBatch(db);
+      
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error cleaning up old signaling messages:', error);
+    }
+  };
+
+  // Call cleanup when component mounts and when leaving a room
+  useEffect(() => {
+    cleanupOldRooms();
+    return () => {
+      if (room?.id) {
+        cleanupOldSignaling(room.id);
+      }
+    };
+  }, []);
+
   const handleLeaveDiscussion = async () => {
     try {
       setConnectionState('disconnecting');
@@ -263,11 +322,13 @@ const VideoChat = () => {
       }
 
       if (room) {
+        // Cleanup signaling messages when leaving
+        await cleanupOldSignaling(room.id);
+        
         const roomRef = doc(db, 'rooms', room.id);
         const roomData = (await roomRef.get()).data();
         
         if (roomData) {
-          // Remove current user from participants
           const updatedParticipants = roomData.participants.filter(
             p => p.uid !== user.uid
           );
