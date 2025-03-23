@@ -5,9 +5,10 @@ import VideoControls from './VideoControls';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts';
 import TopicSelector from './TopicSelector';
-import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc, writeBatch, getDoc, deleteDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
+import DeviceCheck from './DeviceCheck';
 
 const VideoChat = () => {
   const { user } = useAuth();
@@ -26,6 +27,8 @@ const VideoChat = () => {
     continent: 'any',
   });
   const [role, setRole] = useState('participant');
+  const [selectedDevices, setSelectedDevices] = useState(null);
+  const [showDeviceCheck, setShowDeviceCheck] = useState(false);
   const webrtcRef = useRef(null);
   const localVideoRef = useRef(null);
   const roomUnsubscribeRef = useRef(null);
@@ -40,10 +43,20 @@ const VideoChat = () => {
     }
   }, []);
 
-  // Find a discussion room
+  const handleDeviceSelect = (devices) => {
+    setSelectedDevices(devices);
+    setShowDeviceCheck(false);
+    findDiscussion();
+  };
+
   const findDiscussion = async () => {
     if (!user || !selectedTopic) {
       toast.error('Please select a topic first.');
+      return;
+    }
+
+    if (!selectedDevices) {
+      setShowDeviceCheck(true);
       return;
     }
     
@@ -207,10 +220,17 @@ const VideoChat = () => {
       const webrtc = new WebRTCManager(roomId, user.uid, db);
       webrtcRef.current = webrtc;
 
-      // Initialize local media
-      const localStream = await webrtc.initializeMedia(isVideoEnabled, isAudioEnabled);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = localStream;
+      // Initialize local media with error handling
+      try {
+        const localStream = await webrtc.initializeMedia(isVideoEnabled, isAudioEnabled);
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream;
+        }
+      } catch (mediaError) {
+        console.error('Media initialization error:', mediaError);
+        toast.error(mediaError.message || 'Failed to access camera/microphone');
+        handleLeaveDiscussion();
+        return;
       }
 
       // Handle remote participants
@@ -228,6 +248,7 @@ const VideoChat = () => {
           updated.delete(userId);
           return updated;
         });
+        toast.info('Your discussion partner has left the chat');
       });
 
       // Handle connection state changes
@@ -240,35 +261,28 @@ const VideoChat = () => {
           case 'connected':
             setConnectionState('connected');
             setIsConnected(true);
+            toast.success('Connected successfully!');
             break;
           case 'disconnected':
+            setConnectionState('reconnecting');
+            toast.warning('Connection lost. Attempting to reconnect...');
+            break;
           case 'failed':
             setConnectionState('reconnecting');
+            toast.error('Connection failed. Trying to restore...');
             break;
           case 'closed':
             setConnectionState('disconnected');
             setIsConnected(false);
+            handleLeaveDiscussion();
             break;
         }
       });
 
-      // Start listening for connections
-      webrtc.listenForSignalingMessages();
-      
-      // Set timeout for connection
-      setTimeout(() => {
-        if (connectionState === 'connecting') {
-          console.log('Connection timeout, retrying...');
-          handleLeaveDiscussion();
-          toast.error('Connection timeout. Please try again.');
-        }
-      }, 30000); // 30 seconds timeout
-      
     } catch (error) {
       console.error('Error initializing WebRTC:', error);
-      setConnectionState('failed');
-      toast.error('Failed to initialize video chat. Please check your camera and microphone permissions.');
-      throw error;
+      toast.error('Failed to initialize video chat. Please try again.');
+      handleLeaveDiscussion();
     }
   };
 
@@ -333,48 +347,52 @@ const VideoChat = () => {
 
   const handleLeaveDiscussion = async () => {
     try {
-      setConnectionState('disconnecting');
-      
+      // Clean up WebRTC
       if (webrtcRef.current) {
-        await webrtcRef.current.disconnect();
+        webrtcRef.current.cleanup();
+        webrtcRef.current = null;
       }
 
-      if (room) {
-        // Cleanup signaling messages when leaving
-        await cleanupOldSignaling(room.id);
-        
-        const roomRef = doc(db, 'rooms', room.id);
-        const roomData = (await roomRef.get()).data();
-        
-        if (roomData) {
-          const updatedParticipants = roomData.participants.filter(
-            p => p.uid !== user.uid
-          );
-          
-          await updateDoc(roomRef, {
-            participants: updatedParticipants,
-            status: updatedParticipants.length < 2 ? 'ended' : 'active',
-            endedAt: serverTimestamp(),
-          });
-        }
-      }
-
-      // Cleanup
+      // Clean up room listener
       if (roomUnsubscribeRef.current) {
         roomUnsubscribeRef.current();
         roomUnsubscribeRef.current = null;
       }
 
+      // Update room status if we're the last participant
+      if (room) {
+        const roomRef = doc(db, 'rooms', room.id);
+        const roomDoc = await getDoc(roomRef);
+        if (roomDoc.exists()) {
+          const roomData = roomDoc.data();
+          const updatedParticipants = roomData.participants.filter(
+            p => p.uid !== user.uid
+          );
+
+          if (updatedParticipants.length === 0) {
+            // If no participants left, delete the room
+            await deleteDoc(roomRef);
+          } else {
+            // Otherwise update participants list
+            await updateDoc(roomRef, {
+              participants: updatedParticipants,
+              status: 'waiting'
+            });
+          }
+        }
+      }
+
+      // Reset state
       setRoom(null);
       setIsInRoom(false);
       setIsFinding(false);
       setParticipants(new Map());
-      setIsConnected(false);
       setConnectionState('disconnected');
-      
+      setIsConnected(false);
+
     } catch (error) {
       console.error('Error leaving discussion:', error);
-      toast.error('Error leaving discussion. Please try again.');
+      toast.error('Error leaving discussion. Please try refreshing the page.');
     }
   };
 
@@ -409,21 +427,14 @@ const VideoChat = () => {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
-      {!isInRoom ? (
-        <TopicSelector
-          onTopicSelect={setSelectedTopic}
-          selectedTopic={selectedTopic}
-          filters={filters}
-          setFilters={setFilters}
-          role={role}
-          setRole={setRole}
-          onFindPartner={findDiscussion}
-          isFinding={isFinding}
-        />
-      ) : (
-        <div className="flex flex-col h-full bg-gray-900">
-          <div className="flex-1 grid grid-cols-2 gap-4 p-4">
+    <div className="min-h-screen bg-gray-50 py-6">
+      {showDeviceCheck ? (
+        <div className="max-w-2xl mx-auto">
+          <DeviceCheck onComplete={handleDeviceSelect} />
+        </div>
+      ) : isInRoom ? (
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Local video */}
             <div className="relative">
               <video
@@ -431,41 +442,13 @@ const VideoChat = () => {
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover rounded-lg"
+                className="w-full h-[360px] bg-gray-900 rounded-lg object-cover"
               />
-              <div className="absolute bottom-2 left-2 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
-                You
+              <div className="absolute bottom-4 left-4">
+                <span className="px-2 py-1 bg-gray-900 text-white rounded text-sm">
+                  You
+                </span>
               </div>
-              {connectionState !== 'connected' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                  <div className="text-white text-center">
-                    <div className="mb-2">
-                      {connectionState === 'connecting' && (
-                        <div className="flex flex-col items-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
-                          <div>Connecting...</div>
-                        </div>
-                      )}
-                      {connectionState === 'initializing' && 'Initializing...'}
-                      {connectionState === 'reconnecting' && (
-                        <div className="flex flex-col items-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-2"></div>
-                          <div>Reconnecting...</div>
-                        </div>
-                      )}
-                      {connectionState === 'failed' && 'Connection failed'}
-                    </div>
-                    {connectionState === 'failed' && (
-                      <button
-                        onClick={() => initializeWebRTC(room.id)}
-                        className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded"
-                      >
-                        Retry
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Remote videos */}
@@ -474,13 +457,13 @@ const VideoChat = () => {
                 <video
                   autoPlay
                   playsInline
-                  className="w-full h-full object-cover rounded-lg"
-                  ref={el => {
-                    if (el) el.srcObject = stream;
-                  }}
+                  className="w-full h-[360px] bg-gray-900 rounded-lg object-cover"
+                  srcObject={stream}
                 />
-                <div className="absolute bottom-2 left-2 text-white bg-black bg-opacity-50 px-2 py-1 rounded">
-                  Participant
+                <div className="absolute bottom-4 left-4">
+                  <span className="px-2 py-1 bg-gray-900 text-white rounded text-sm">
+                    Partner
+                  </span>
                 </div>
               </div>
             ))}
@@ -490,10 +473,22 @@ const VideoChat = () => {
           <VideoControls
             isVideoEnabled={isVideoEnabled}
             isAudioEnabled={isAudioEnabled}
-            onToggleVideo={toggleVideo}
-            onToggleAudio={toggleAudio}
+            onToggleVideo={() => setIsVideoEnabled(!isVideoEnabled)}
+            onToggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
             onLeave={handleLeaveDiscussion}
-            connectionState={connectionState}
+          />
+        </div>
+      ) : (
+        <div className="max-w-4xl mx-auto px-4">
+          <TopicSelector
+            selectedTopic={selectedTopic}
+            onTopicSelect={setSelectedTopic}
+            filters={filters}
+            setFilters={setFilters}
+            role={role}
+            setRole={setRole}
+            onFindPartner={findDiscussion}
+            isFinding={isFinding}
           />
         </div>
       )}
