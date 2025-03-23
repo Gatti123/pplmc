@@ -98,22 +98,37 @@ const TopicSelector = ({
     // Subscribe to real-time updates
     const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
       const topicCounts = {};
+      const countedUsers = new Set(); // Track unique users
       
       // Initialize counts for all topics
       TOPICS.forEach(topic => {
         topicCounts[topic.id] = 0;
       });
 
+      // Get current timestamp
+      const now = new Date().getTime();
+      const ACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
+
       // Count all users in rooms for each topic
       snapshot.docs.forEach(doc => {
         const room = doc.data();
-        if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
-          // Only count rooms that match the current filters
-          if (filters.continent === 'any' || room.continent === filters.continent) {
-            // Add count of all participants in the room
-            topicCounts[room.topic] += room.participants?.length || 0;
+        if (!room.topic || !topicCounts.hasOwnProperty(room.topic)) return;
+        
+        // Only count rooms that match the current filters
+        if (filters.continent !== 'any' && room.continent !== filters.continent) return;
+
+        // Check each participant in the room
+        (room.participants || []).forEach(participant => {
+          // Skip if we've already counted this user
+          if (countedUsers.has(participant.uid)) return;
+
+          // Check if participant is active (joined within last 5 minutes)
+          const joinedAt = new Date(participant.joinedAt).getTime();
+          if (now - joinedAt <= ACTIVE_THRESHOLD) {
+            topicCounts[room.topic]++;
+            countedUsers.add(participant.uid);
           }
-        }
+        });
       });
 
       setOnlineUsers(topicCounts);
@@ -158,8 +173,15 @@ const TopicSelector = ({
             <div className="text-xl mb-1">{topic.icon}</div>
             <div className="font-medium">{topic.name}</div>
             {onlineUsers[topic.id] > 0 && (
-              <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium 
-                ${selectedTopic === topic.id ? 'bg-white text-primary' : 'bg-primary text-white'}`}>
+              <div className={`
+                absolute top-2 right-2 
+                px-2 py-0.5 
+                rounded-full 
+                text-xs font-medium 
+                flex items-center gap-1
+                ${selectedTopic === topic.id ? 'bg-white text-primary' : 'bg-primary text-white'}
+              `}>
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                 {onlineUsers[topic.id]} online
               </div>
             )}
