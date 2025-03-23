@@ -3,6 +3,12 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --primary: #800080;
+  --primary-dark: #600060;
+  --secondary: #f0f0f0;
+}
+
 html,
 body {
   padding: 0;
@@ -28,8 +34,36 @@ body {
     @apply bg-white rounded-lg shadow-md p-6;
   }
   
+  .bg-primary {
+    background-color: var(--primary);
+  }
+  
+  .bg-primary-dark {
+    background-color: var(--primary-dark);
+  }
+  
+  .text-primary {
+    color: var(--primary);
+  }
+  
+  .border-primary {
+    border-color: var(--primary);
+  }
+  
+  .hover\:bg-primary-dark:hover {
+    background-color: var(--primary-dark);
+  }
+  
+  .focus\:ring-primary:focus {
+    --tw-ring-color: var(--primary);
+  }
+  
+  .bg-secondary {
+    background-color: var(--secondary);
+  }
+  
   .input-field {
-    @apply w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+    @apply px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
   }
 }
 
