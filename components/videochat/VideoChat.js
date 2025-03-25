@@ -459,6 +459,28 @@ const VideoChat = () => {
         </div>
       ) : isInRoom ? (
         <div className="max-w-6xl mx-auto px-4">
+          {/* Connection status */}
+          <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${
+                connectionState === 'connected' ? 'bg-green-500' :
+                connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                'bg-red-500'
+              }`}></div>
+              <span className="text-sm font-medium text-gray-700">
+                {connectionState === 'connected' ? 'Connected' :
+                 connectionState === 'connecting' ? 'Connecting...' :
+                 'Disconnected'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                Topic: {room?.data?.topic}
+              </span>
+              <ChatTimer />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Local video */}
             <div className="relative">
@@ -518,6 +540,30 @@ const VideoChat = () => {
         </div>
       )}
     </div>
+  );
+};
+
+const ChatTimer = () => {
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setDuration(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <span className="text-sm text-gray-600">
+      Duration: {formatTime(duration)}
+    </span>
   );
 };
 
