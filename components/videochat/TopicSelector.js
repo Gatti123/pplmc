@@ -218,7 +218,7 @@ const TopicSelector = ({
         </div>
 
         {/* Topics Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        <div className="topics-grid">
           {filteredTopics.map((topic) => (
             <button
               key={topic.id}
