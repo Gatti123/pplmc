@@ -8,6 +8,8 @@
   --primary-dark: #4338CA;
   --secondary: #F3F4F6;
   --secondary-dark: #E5E7EB;
+  --primary-light: rgba(79, 70, 229, 0.1);
+  --white-transparent: rgba(255, 255, 255, 0.2);
 }
 
 html,
@@ -91,11 +93,11 @@ body {
   }
 
   .online-badge-selected {
-    @apply bg-white/20 text-white;
+    @apply bg-white bg-opacity-20 text-white;
   }
 
   .online-badge-default {
-    @apply bg-primary/10 text-primary;
+    @apply bg-primary bg-opacity-10 text-primary;
   }
 
   .topics-grid {
