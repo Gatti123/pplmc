@@ -159,7 +159,7 @@ const TopicSelector = ({
             placeholder="Search topics..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
+            className="input-field w-full"
           />
         </div>
 
@@ -218,7 +218,7 @@ const TopicSelector = ({
         </div>
 
         {/* Topics Grid */}
-        <div className="topics-grid">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {filteredTopics.map((topic) => (
             <button
               key={topic.id}
@@ -245,56 +245,29 @@ const TopicSelector = ({
           ))}
         </div>
 
-        {/* Conversation Starters */}
-        {showStarters && selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
-          <div className="bg-secondary rounded-lg p-6 shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversation Starters</h3>
-            <ul className="space-y-3">
-              {CONVERSATION_STARTERS[selectedTopic].map((starter, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span className="text-gray-700">{starter}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* Find Partner Button */}
-        <div className="flex justify-center pt-4">
+        {/* Start Discussion Button */}
+        <div className="mt-6">
           <button
             onClick={onFindPartner}
             disabled={!selectedTopic || isFinding}
-            className={`
-              px-8 py-4 rounded-lg font-semibold text-lg
-              transition-all duration-200 transform
-              flex items-center gap-3
-              ${!selectedTopic || isFinding
-                ? 'bg-gray-300 cursor-not-allowed'
-                : 'bg-primary text-white hover:bg-primary-dark hover:scale-105'
-              }
-            `}
+            className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-dark transition-colors"
           >
-            {isFinding ? (
-              <>
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Finding Partner...</span>
-              </>
-            ) : (
-              'Find Discussion Partner'
-            )}
+            {isFinding ? 'Finding partner...' : 'Start Discussion'}
           </button>
         </div>
 
-        {isFinding && (
-          <div className="text-center space-y-2 animate-pulse">
-            <p className="text-gray-700">
-              Looking for someone interested in {TOPICS.find(t => t.id === selectedTopic)?.name}
-            </p>
-            <p className="text-gray-500 text-sm">This may take a few moments...</p>
+        {/* Conversation Starters */}
+        {selectedTopic && TOPICS.find(t => t.id === selectedTopic)?.starters && (
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-3">Conversation Starters</h3>
+            <ul className="space-y-2 text-gray-600">
+              {TOPICS.find(t => t.id === selectedTopic).starters.map((starter, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span>{starter}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
