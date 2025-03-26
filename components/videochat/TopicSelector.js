@@ -88,12 +88,16 @@ const TopicSelector = ({
   useEffect(() => {
     if (!user) return;
 
+    console.log('Starting room listener for user:', user.uid);
+
     const roomsQuery = query(
       collection(db, 'rooms'),
       where('status', '==', 'waiting')
     );
 
     const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
+      console.log('Received snapshot with', snapshot.docs.length, 'rooms');
+      
       const topicCounts = {};
       
       // Initialize counts for all topics
@@ -104,16 +108,27 @@ const TopicSelector = ({
       // Count users in rooms
       snapshot.docs.forEach(doc => {
         const room = doc.data();
+        console.log('Processing room:', {
+          id: doc.id,
+          topic: room.topic,
+          status: room.status,
+          createdBy: room.createdBy
+        });
         
         // Skip own rooms
-        if (room.createdBy === user.uid) return;
+        if (room.createdBy === user.uid) {
+          console.log('Skipping own room');
+          return;
+        }
         
         // Count waiting rooms for each topic
         if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
+          console.log('Incrementing count for topic:', room.topic);
           topicCounts[room.topic]++;
         }
       });
 
+      console.log('Final topic counts:', topicCounts);
       setOnlineUsers(topicCounts);
     });
 
