@@ -5,6 +5,7 @@ import * as Yup from 'yup';
 import { toast } from 'react-toastify';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '@/contexts';
+import { signInWithGoogle } from '../../lib/firebase';
 
 const SignInSchema = Yup.object().shape({
   email: Yup.string().email('Invalid email').required('Required'),
@@ -14,7 +15,8 @@ const SignInSchema = Yup.object().shape({
 const SignIn = ({ onToggleForm }) => {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { signInWithGoogle, signInWithEmail } = useAuth();
+  const { signInWithEmail } = useAuth();
+  const [error, setError] = useState(null);
 
   const handleEmailSignIn = async (values, { setSubmitting, resetForm }) => {
     setLoading(true);
@@ -32,20 +34,27 @@ const SignIn = ({ onToggleForm }) => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleSignIn = async () => {
     try {
+      setError(null);
       await signInWithGoogle();
-      router.push('/');
-      toast.success('Successfully signed in!');
-    } catch (error) {
-      console.error('Error signing in with Google:', error);
-      toast.error('Failed to sign in with Google');
+    } catch (err) {
+      console.error('Sign in error:', err);
+      setError('Failed to sign in. Please try again.');
     }
   };
 
   return (
     <div className="card max-w-md mx-auto">
       <h2 className="text-2xl font-bold text-primary mb-6 text-center">Sign In</h2>
+      
+      {error && (
+        <div className="rounded-md bg-red-50 p-4">
+          <div className="text-sm text-red-700">
+            {error}
+          </div>
+        </div>
+      )}
       
       <Formik
         initialValues={{ email: '', password: '' }}
@@ -98,7 +107,7 @@ const SignIn = ({ onToggleForm }) => {
       </div>
       
       <button
-        onClick={handleGoogleSignIn}
+        onClick={handleSignIn}
         className="mt-4 w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 px-4 text-gray-700 hover:bg-gray-50 transition-colors"
         disabled={loading}
       >
