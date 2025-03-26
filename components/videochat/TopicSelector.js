@@ -91,7 +91,7 @@ const TopicSelector = ({
     // Create a query for all active rooms
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', 'in', ['waiting', 'active'])
+      where('status', '==', 'waiting')
     );
 
     // Subscribe to real-time updates
@@ -114,13 +114,9 @@ const TopicSelector = ({
         // Skip own rooms
         if (room.createdBy === user.uid) return;
         
-        // Count all participants in the room
+        // Count waiting rooms for each topic
         if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
-          if (room.status === 'waiting') {
-            topicCounts[room.topic]++;
-          } else if (room.status === 'active' && room.participants) {
-            topicCounts[room.topic] += room.participants.length;
-          }
+          topicCounts[room.topic]++;
         }
       });
 
@@ -141,150 +137,155 @@ const TopicSelector = ({
 
   return (
     <div className="space-y-6 p-4">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Find Discussion Partner</h2>
-        <input
-          type="text"
-          placeholder="Search topics..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="input-field w-full"
-        />
-      </div>
+      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Find Discussion Partner</h2>
+        
+        {/* Search input */}
+        <div className="mb-6">
+          <input
+            type="text"
+            placeholder="Search topics..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {filteredTopics.map((topic) => (
+        {/* Filters Section */}
+        <div className="filter-section mb-6">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">Discussion Settings</h3>
+          <div className="filter-grid">
+            {/* Language Selection */}
+            <div className="space-y-2">
+              <label className="filter-label">Language</label>
+              <select
+                value={filters.language}
+                onChange={(e) => setFilters({ ...filters, language: e.target.value })}
+                className="filter-select"
+              >
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Continent Selection */}
+            <div className="space-y-2">
+              <label className="filter-label">Region</label>
+              <select
+                value={filters.continent}
+                onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
+                className="filter-select"
+              >
+                {CONTINENTS.map((continent) => (
+                  <option key={continent.code} value={continent.code}>
+                    {continent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Role Selection */}
+            <div className="space-y-2">
+              <label className="filter-label">Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="filter-select"
+              >
+                {ROLES.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Topics Grid */}
+        <div className="topics-grid">
+          {filteredTopics.map((topic) => (
+            <button
+              key={topic.id}
+              onClick={() => handleTopicSelect(topic.id)}
+              className={`topic-card ${
+                selectedTopic === topic.id
+                  ? 'topic-card-selected'
+                  : 'topic-card-default'
+              }`}
+            >
+              <div className="text-2xl mb-2">{topic.icon}</div>
+              <div className="font-medium">{topic.name}</div>
+              {onlineUsers[topic.id] > 0 && (
+                <div className={`online-badge ${
+                  selectedTopic === topic.id 
+                    ? 'online-badge-selected' 
+                    : 'online-badge-default'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                  {onlineUsers[topic.id]} waiting
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Conversation Starters */}
+        {showStarters && selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
+          <div className="bg-secondary rounded-lg p-6 shadow-sm border border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversation Starters</h3>
+            <ul className="space-y-3">
+              {CONVERSATION_STARTERS[selectedTopic].map((starter, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <span className="text-primary">•</span>
+                  <span className="text-gray-700">{starter}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Find Partner Button */}
+        <div className="flex justify-center pt-4">
           <button
-            key={topic.id}
-            onClick={() => handleTopicSelect(topic.id)}
-            className={`topic-card ${
-              selectedTopic === topic.id
-                ? 'topic-card-selected'
-                : 'topic-card-default'
-            }`}
+            onClick={onFindPartner}
+            disabled={!selectedTopic || isFinding}
+            className={`
+              px-8 py-4 rounded-lg font-semibold text-lg
+              transition-all duration-200 transform
+              flex items-center gap-3
+              ${!selectedTopic || isFinding
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-primary text-white hover:bg-primary-dark hover:scale-105'
+              }
+            `}
           >
-            <div className="text-2xl mb-2">{topic.icon}</div>
-            <div className="font-medium">{topic.name}</div>
-            {onlineUsers[topic.id] > 0 && (
-              <div className={`online-badge ${
-                selectedTopic === topic.id 
-                  ? 'online-badge-selected' 
-                  : 'online-badge-default'
-              }`}>
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                {onlineUsers[topic.id]} online
-              </div>
+            {isFinding ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Finding Partner...</span>
+              </>
+            ) : (
+              'Find Discussion Partner'
             )}
           </button>
-        ))}
-      </div>
-
-      {/* Filters Section */}
-      <div className="filter-section">
-        <h3 className="text-xl font-semibold text-gray-900 mb-6">Discussion Settings</h3>
-        <div className="filter-grid">
-          {/* Language Selection */}
-          <div className="space-y-2">
-            <label className="filter-label">Language</label>
-            <select
-              value={filters.language}
-              onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-              className="filter-select"
-            >
-              {LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Continent Selection */}
-          <div className="space-y-2">
-            <label className="filter-label">Region</label>
-            <select
-              value={filters.continent}
-              onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
-              className="filter-select"
-            >
-              {CONTINENTS.map((continent) => (
-                <option key={continent.code} value={continent.code}>
-                  {continent.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Role Selection */}
-          <div className="space-y-2">
-            <label className="filter-label">Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="filter-select"
-            >
-              {ROLES.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
+
+        {isFinding && (
+          <div className="text-center space-y-2 animate-pulse">
+            <p className="text-gray-700">
+              Looking for someone interested in {TOPICS.find(t => t.id === selectedTopic)?.name}
+            </p>
+            <p className="text-gray-500 text-sm">This may take a few moments...</p>
+          </div>
+        )}
       </div>
-
-      {/* Conversation Starters */}
-      {showStarters && selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
-        <div className="bg-secondary rounded-lg p-6 shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversation Starters</h3>
-          <ul className="space-y-3">
-            {CONVERSATION_STARTERS[selectedTopic].map((starter, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <span className="text-primary">•</span>
-                <span className="text-gray-700">{starter}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Find Partner Button */}
-      <div className="flex justify-center pt-4">
-        <button
-          onClick={onFindPartner}
-          disabled={!selectedTopic || isFinding}
-          className={`
-            px-8 py-4 rounded-lg font-semibold text-lg
-            transition-all duration-200 transform
-            flex items-center gap-3
-            ${!selectedTopic || isFinding
-              ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-primary text-white hover:bg-primary-dark hover:scale-105'
-            }
-          `}
-        >
-          {isFinding ? (
-            <>
-              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span>Finding Partner...</span>
-            </>
-          ) : (
-            'Find Discussion Partner'
-          )}
-        </button>
-      </div>
-
-      {isFinding && (
-        <div className="text-center space-y-2 animate-pulse">
-          <p className="text-gray-700">
-            Looking for someone interested in {TOPICS.find(t => t.id === selectedTopic)?.name}
-          </p>
-          <p className="text-gray-500 text-sm">This may take a few moments...</p>
-        </div>
-      )}
     </div>
   );
 };

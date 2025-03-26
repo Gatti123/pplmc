@@ -453,85 +453,98 @@ const VideoChat = () => {
 
   return (
     <>
-      {showDeviceCheck ? (
-        <DeviceCheck onDeviceSelect={handleDeviceSelect} />
-      ) : !isInRoom ? (
-        <div className="main-container">
-          <TopicSelector
-            selectedTopic={selectedTopic}
-            onTopicSelect={setSelectedTopic}
-            filters={filters}
-            setFilters={setFilters}
-            role={role}
-            setRole={setRole}
-            onFindPartner={findDiscussion}
-            isFinding={isFinding}
-          />
-        </div>
-      ) : (
-        <div className="max-w-6xl mx-auto px-4">
-          {/* Connection status */}
-          <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${
-                connectionState === 'connected' ? 'bg-green-500' :
-                connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                'bg-red-500'
-              }`}></div>
-              <span className="text-sm font-medium text-gray-700">
-                {connectionState === 'connected' ? 'Connected' :
-                 connectionState === 'connecting' ? 'Connecting...' :
-                 'Disconnected'}
-              </span>
-            </div>
+      <header className="header">
+        <div className="header-content">
+          <h1 className="text-xl font-bold text-gray-900">Polemica</h1>
+          {user && (
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Topic: {room?.data?.topic}
-              </span>
-              <ChatTimer />
+              <span className="text-sm text-gray-600">{user.displayName}</span>
             </div>
-          </div>
+          )}
+        </div>
+      </header>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Local video */}
-            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
-                You
+      <main className="mt-16">
+        {showDeviceCheck ? (
+          <DeviceCheck onDeviceSelect={handleDeviceSelect} />
+        ) : !isInRoom ? (
+          <div className="main-container">
+            <TopicSelector
+              selectedTopic={selectedTopic}
+              onTopicSelect={setSelectedTopic}
+              filters={filters}
+              setFilters={setFilters}
+              role={role}
+              setRole={setRole}
+              onFindPartner={findDiscussion}
+              isFinding={isFinding}
+            />
+          </div>
+        ) : (
+          <div className="max-w-6xl mx-auto px-4">
+            {/* Connection status */}
+            <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  connectionState === 'connected' ? 'bg-green-500' :
+                  connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                  'bg-red-500'
+                }`}></div>
+                <span className="text-sm font-medium text-gray-700">
+                  {connectionState === 'connected' ? 'Connected' :
+                   connectionState === 'connecting' ? 'Connecting...' :
+                   'Disconnected'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-600">
+                  Topic: {room?.data?.topic}
+                </span>
+                <ChatTimer />
               </div>
             </div>
 
-            {/* Remote video */}
-            {remoteStreamRef.current && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Local video */}
               <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
                 <video
-                  ref={remoteStreamRef}
+                  ref={localVideoRef}
                   autoPlay
                   playsInline
+                  muted
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
-                  Partner
+                  You
                 </div>
               </div>
-            )}
-          </div>
 
-          <VideoControls
-            isVideoEnabled={isVideoEnabled}
-            isAudioEnabled={isAudioEnabled}
-            onToggleVideo={toggleVideo}
-            onToggleAudio={toggleAudio}
-            onLeave={handleLeaveDiscussion}
-          />
-        </div>
-      )}
+              {/* Remote video */}
+              {remoteStreamRef.current && (
+                <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
+                  <video
+                    ref={remoteStreamRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
+                    Partner
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <VideoControls
+              isVideoEnabled={isVideoEnabled}
+              isAudioEnabled={isAudioEnabled}
+              onToggleVideo={toggleVideo}
+              onToggleAudio={toggleAudio}
+              onLeave={handleLeaveDiscussion}
+            />
+          </div>
+        )}
+      </main>
     </>
   );
 };
