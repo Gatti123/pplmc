@@ -88,13 +88,11 @@ const TopicSelector = ({
   useEffect(() => {
     if (!user) return;
 
-    // Create a query for all active rooms
     const roomsQuery = query(
       collection(db, 'rooms'),
       where('status', '==', 'waiting')
     );
 
-    // Subscribe to real-time updates
     const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
       const topicCounts = {};
       
@@ -106,10 +104,6 @@ const TopicSelector = ({
       // Count users in rooms
       snapshot.docs.forEach(doc => {
         const room = doc.data();
-        
-        // Skip if room doesn't match current filters
-        if (room.language !== filters.language) return;
-        if (filters.continent !== 'any' && room.continent !== filters.continent) return;
         
         // Skip own rooms
         if (room.createdBy === user.uid) return;
@@ -124,7 +118,7 @@ const TopicSelector = ({
     });
 
     return () => unsubscribe();
-  }, [user, filters.language, filters.continent]);
+  }, [user]);
 
   const filteredTopics = TOPICS.filter((topic) =>
     topic.name.toLowerCase().includes(searchTerm.toLowerCase())
