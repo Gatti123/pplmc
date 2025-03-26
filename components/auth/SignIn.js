@@ -5,7 +5,6 @@ import * as Yup from 'yup';
 import { toast } from 'react-toastify';
 import { FcGoogle } from 'react-icons/fc';
 import { useAuth } from '@/contexts';
-import { signInWithGoogle } from '../../lib/firebase';
 
 const SignInSchema = Yup.object().shape({
   email: Yup.string().email('Invalid email').required('Required'),
@@ -15,7 +14,7 @@ const SignInSchema = Yup.object().shape({
 const SignIn = ({ onToggleForm }) => {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { signInWithEmail } = useAuth();
+  const { signInWithEmail, signInWithGoogle } = useAuth();
   const [error, setError] = useState(null);
 
   const handleEmailSignIn = async (values, { setSubmitting, resetForm }) => {
@@ -34,13 +33,18 @@ const SignIn = ({ onToggleForm }) => {
     }
   };
 
-  const handleSignIn = async () => {
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
     try {
       setError(null);
       await signInWithGoogle();
+      toast.success('Successfully signed in!');
+      router.push('/');
     } catch (err) {
       console.error('Sign in error:', err);
       setError('Failed to sign in. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,7 +111,7 @@ const SignIn = ({ onToggleForm }) => {
       </div>
       
       <button
-        onClick={handleSignIn}
+        onClick={handleGoogleSignIn}
         className="mt-4 w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md py-2 px-4 text-gray-700 hover:bg-gray-50 transition-colors"
         disabled={loading}
       >

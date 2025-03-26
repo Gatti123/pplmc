@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { auth } from '../lib/firebase';
+import { auth, handleRedirectResult } from '../lib/firebase';
 import { 
   signInWithPopup, 
+  signInWithRedirect,
   GoogleAuthProvider, 
   signOut,
   onAuthStateChanged,
@@ -31,14 +32,38 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
+    // Check if the user has been redirected from auth provider
+    handleRedirectResult()
+      .then((result) => {
+        if (result) {
+          console.log("Handled redirect auth result in context");
+        }
+      })
+      .catch((error) => {
+        console.error("Error handling redirect in context:", error);
+      });
+
     return () => unsubscribe();
   }, []);
 
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      return result.user;
+      
+      // Check if device is mobile
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        // Use redirect for mobile
+        console.log("Using redirect for mobile auth");
+        await signInWithRedirect(auth, provider);
+        return null; // The result will be handled in useEffect
+      } else {
+        // Use popup for desktop
+        console.log("Using popup for desktop auth");
+        const result = await signInWithPopup(auth, provider);
+        return result.user;
+      }
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;
