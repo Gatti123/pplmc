@@ -2,15 +2,22 @@ import '@/styles/globals.css';
 import { AuthProvider } from '@/contexts';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Layout from '@/components/layout/Layout';
+import MainLayout from '@/components/layout/MainLayout';
 
-export default function App({ Component, pageProps }) {
-  return (
+function MyApp({ Component, pageProps }) {
+  // Use the layout defined at the page level, if available
+  const getLayout = Component.getLayout || ((page) => (
     <AuthProvider>
-      <Layout>
-        <Component {...pageProps} />
-      </Layout>
-      <ToastContainer />
+      <MainLayout>{page}</MainLayout>
     </AuthProvider>
+  ));
+
+  return (
+    <>
+      {getLayout(<Component {...pageProps} />)}
+      <ToastContainer position="top-right" autoClose={3000} />
+    </>
   );
-} 
+}
+
+export default MyApp; 

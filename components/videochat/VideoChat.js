@@ -1,442 +1,337 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import WebRTCManager from '@/lib/webrtc';
-import VideoControls from './VideoControls';
-import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { useAuth } from '@/contexts';
 import TopicSelector from './TopicSelector';
-import { collection, addDoc, query, where, getDocs, updateDoc, serverTimestamp, arrayUnion, onSnapshot, doc, writeBatch, getDoc, deleteDoc, runTransaction } from 'firebase/firestore';
-import { v4 as uuidv4 } from 'uuid';
-import { toast } from 'react-toastify';
+import VideoControls from './VideoControls';
 import DeviceCheck from './DeviceCheck';
+import { WebRTCManager } from '../../lib/webrtc';
+import { toast } from 'react-toastify';
+
+// Default filters
+const DEFAULT_FILTERS = {
+  language: 'en',
+  continent: 'any'
+};
+
+// Default roles
+const DEFAULT_ROLE = 'participant';
 
 const VideoChat = () => {
+  // Auth and router
   const { user } = useAuth();
   const router = useRouter();
-  const [isConnected, setIsConnected] = useState(false);
-  const [participants, setParticipants] = useState(new Map());
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  
+  // User selections
   const [selectedTopic, setSelectedTopic] = useState('');
-  const [isFinding, setIsFinding] = useState(false);
-  const [isInRoom, setIsInRoom] = useState(false);
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [role, setRole] = useState(DEFAULT_ROLE);
+  
+  // Room and connection state
   const [room, setRoom] = useState(null);
+  const [isInRoom, setIsInRoom] = useState(false);
+  const [isFinding, setIsFinding] = useState(false);
   const [connectionState, setConnectionState] = useState('disconnected');
-  const [filters, setFilters] = useState({
-    language: 'en',
-    continent: 'any',
-  });
-  const [role, setRole] = useState('participant');
+  
+  // Media state
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(true);
   const [selectedDevices, setSelectedDevices] = useState(null);
-  const [showDeviceCheck, setShowDeviceCheck] = useState(false);
-  const webrtcRef = useRef(null);
-  const localVideoRef = useRef(null);
-  const roomUnsubscribeRef = useRef(null);
-  const webrtcManager = useRef(null);
-  const remoteStreamRef = useRef(null);
-  const [status, setStatus] = useState('disconnected');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [showDeviceCheck, setShowDeviceCheck] = useState(true);
+  
+  // WebRTC
+  const webRTCManager = useRef(null);
+  const roomRef = useRef(null);
+  const signalingUnsubscribe = useRef(null);
 
-  // Set default language based on browser
+  // Set browser language as default
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setFilters(prev => ({
-        ...prev,
-        language: navigator.language.split('-')[0] || 'en'
-      }));
+      const browserLang = navigator.language.split('-')[0];
+      if (['en', 'es', 'fr', 'de', 'ru', 'zh'].includes(browserLang)) {
+        setFilters(prev => ({ ...prev, language: browserLang }));
+      }
     }
   }, []);
 
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      if (signalingUnsubscribe.current) {
+        signalingUnsubscribe.current();
+      }
+      
+      // Clean up WebRTC
+      if (webRTCManager.current) {
+        webRTCManager.current.cleanup();
+      }
+      
+      // Clean up local media
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [localStream]);
+
+  // Handle device selection
   const handleDeviceSelect = (devices) => {
     setSelectedDevices(devices);
     setShowDeviceCheck(false);
-    findDiscussion();
   };
 
+  // Find discussion partner
   const findDiscussion = async () => {
-    if (!user || !selectedTopic) {
-      toast.error('Please select a topic first.');
-      return;
-    }
-
-    if (!selectedDevices) {
-      setShowDeviceCheck(true);
-      return;
-    }
-    
-    setIsFinding(true);
-    console.log('Starting search with filters:', { 
-      topic: selectedTopic, 
-      language: filters.language, 
-      continent: filters.continent, 
-      role,
-      userId: user.uid 
-    });
+    if (!user || !selectedTopic) return;
     
     try {
-      const roomsRef = collection(db, 'rooms');
-      const queryConditions = [
-        where('topic', '==', selectedTopic),
+      setIsFinding(true);
+      
+      // Search for rooms based on selected filters
+      const roomsCollection = collection(db, 'rooms');
+      const waitingRoomsQuery = query(
+        roomsCollection,
         where('status', '==', 'waiting'),
-        where('language', '==', filters.language),
-      ];
+        where('topic', '==', selectedTopic),
+        where('language', '==', filters.language)
+      );
       
-      if (filters.continent !== 'any') {
-        queryConditions.push(where('continent', '==', filters.continent));
-      }
-      
-      const roomsQuery = query(roomsRef, ...queryConditions);
-      const querySnapshot = await getDocs(roomsQuery);
-      console.log('Found waiting rooms:', querySnapshot.size);
-      
-      let roomRef;
-      let roomId;
-      let roomData;
-      
-      // If there's an available room, join it using a transaction
-      if (!querySnapshot.empty) {
-        console.log('Found existing room to join');
-        const existingRoom = querySnapshot.docs[0];
-        roomRef = existingRoom.ref;
-        roomId = existingRoom.id;
-        roomData = existingRoom.data();
+      // Listen for any changes to the query
+      const unsubscribe = onSnapshot(waitingRoomsQuery, async (snapshot) => {
+        let foundRoom = null;
         
-        // Make sure we're not joining our own room
-        if (roomData.createdBy === user.uid) {
-          console.log('Found own room, creating new one instead');
-        } else {
-          // Use transaction to update room
-          await runTransaction(db, async (transaction) => {
-            const roomDoc = await transaction.get(roomRef);
-            if (!roomDoc.exists()) {
-              throw new Error('Room no longer exists');
-            }
-            
-            const currentData = roomDoc.data();
-            if (currentData.status !== 'waiting') {
-              throw new Error('Room is no longer available');
-            }
-            
-            transaction.update(roomRef, {
-              status: 'active',
-              participants: arrayUnion({
-                uid: user.uid,
-                displayName: user.displayName,
-                role: role,
-                joinedAt: new Date().toISOString()
-              }),
-              updatedAt: serverTimestamp()
-            });
+        // Filter rooms further
+        for (const doc of snapshot.docs) {
+          const roomData = doc.data();
+          
+          // Skip rooms created by the current user
+          if (roomData.createdBy === user.uid) continue;
+          
+          // Apply continent filter if not 'any'
+          if (filters.continent !== 'any' && roomData.continent !== filters.continent) continue;
+          
+          // Found a suitable room
+          foundRoom = { id: doc.id, ...roomData };
+          break;
+        }
+        
+        if (foundRoom) {
+          // Join existing room
+          const roomRef = doc(db, 'rooms', foundRoom.id);
+          await updateDoc(roomRef, {
+            status: 'active',
+            participants: [...(foundRoom.participants || []), {
+              uid: user.uid,
+              displayName: user.displayName,
+              role: role,
+              joinedAt: serverTimestamp()
+            }],
+            updatedAt: serverTimestamp()
           });
           
-          console.log('Successfully joined room:', roomId);
-          setRoom({ id: roomId, data: roomData });
-          setupRoomListener(roomRef);
-          return;
+          setRoom(foundRoom);
+          setIsInRoom(true);
+        } else {
+          // Create new room
+          const newRoom = {
+            topic: selectedTopic,
+            language: filters.language,
+            continent: filters.continent,
+            status: 'waiting',
+            createdBy: user.uid,
+            createdAt: serverTimestamp(),
+            participants: [{
+              uid: user.uid,
+              displayName: user.displayName,
+              role: role,
+              joinedAt: serverTimestamp()
+            }]
+          };
+          
+          // Add the new room to Firestore
+          const newRoomRef = doc(collection(db, 'rooms'));
+          await updateDoc(newRoomRef, newRoom);
+          setRoom({ id: newRoomRef.id, ...newRoom });
+          
+          // Set up a listener for the room
+          setupRoomListener(newRoomRef.id);
         }
-      }
-
-      // Create a new room if no matching room is found or if we found our own room
-      console.log('Creating new room');
-      const newRoomData = {
-        topic: selectedTopic,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        createdBy: user.uid,
-        participants: [{
-          uid: user.uid,
-          displayName: user.displayName,
-          role: role,
-          joinedAt: new Date().toISOString()
-        }],
-        status: 'waiting',
-        language: filters.language,
-        continent: filters.continent,
-      };
-      
-      roomRef = await addDoc(roomsRef, newRoomData);
-      roomId = roomRef.id;
-      console.log('Created new room:', roomId);
-
-      setRoom({ id: roomId, data: newRoomData });
-      setupRoomListener(roomRef);
-      
+        
+        // Unsubscribe as we've found or created a room
+        unsubscribe();
+        setIsFinding(false);
+      }, (error) => {
+        console.error('Error finding rooms:', error);
+        setIsFinding(false);
+        toast.error('Error finding discussion partner. Please try again.');
+      });
     } catch (error) {
-      console.error('Error finding discussion:', error);
-      toast.error(error.message || 'Error finding discussion. Please try again.');
+      console.error('Error in findDiscussion:', error);
       setIsFinding(false);
+      toast.error('An unexpected error occurred. Please try again.');
     }
   };
 
-  const setupRoomListener = (roomRef) => {
-    if (roomUnsubscribeRef.current) {
-      roomUnsubscribeRef.current();
-    }
-
-    const unsubscribe = onSnapshot(roomRef, async (snapshot) => {
-      const data = snapshot.data();
-      console.log('Room update received:', data);
-
-      if (!data) {
-        console.log('Room was deleted or does not exist');
-        handleLeaveDiscussion();
+  // Set up a listener for room updates
+  const setupRoomListener = (roomId) => {
+    const roomRef = doc(db, 'rooms', roomId);
+    
+    return onSnapshot(roomRef, (snapshot) => {
+      if (!snapshot.exists()) {
+        // Room was deleted
+        toast.info('The discussion room has been closed');
+        setIsInRoom(false);
+        setRoom(null);
         return;
       }
-
-      // Update room state
-      setRoom({ id: snapshot.id, data });
-
-      // If room is active and has two participants, initialize WebRTC
-      if (data.status === 'active' && data.participants?.length === 2) {
-        console.log('Room is active with 2 participants');
-        
-        // Find the other participant
-        const otherParticipant = data.participants.find(p => p.uid !== user.uid);
-        
-        if (!isInRoom && otherParticipant) {
-          console.log('Initializing WebRTC with other participant:', otherParticipant);
-          setIsInRoom(true);
-          setIsFinding(false);
-          setConnectionState('connecting');
-          
-          try {
-            await initializeWebRTC();
-            
-            // Update user's recent discussions
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
-              recentDiscussions: arrayUnion({
-                roomId: snapshot.id,
-                topic: data.topic,
-                timestamp: new Date().toISOString(),
-                participants: data.participants,
-              }),
-            });
-          } catch (error) {
-            console.error('Error initializing WebRTC:', error);
-            toast.error('Failed to establish video connection. Please try again.');
-            handleLeaveDiscussion();
-          }
-        }
-      } else if (data.status === 'ended' || data.participants?.length < 2) {
-        console.log('Room ended or participant left');
-        handleLeaveDiscussion();
+      
+      const roomData = snapshot.data();
+      setRoom({ id: snapshot.id, ...roomData });
+      
+      // If room status changed to active and there are 2 participants
+      if (roomData.status === 'active' && roomData.participants?.length >= 2) {
+        // Initialize WebRTC connection
+        initializeWebRTC();
       }
-    }, (error) => {
-      console.error('Error in room listener:', error);
-      toast.error('Lost connection to room. Please try again.');
-      handleLeaveDiscussion();
     });
-    
-    roomUnsubscribeRef.current = unsubscribe;
   };
 
+  // Initialize WebRTC
   const initializeWebRTC = async () => {
     if (!user || !room) return;
-
-    console.log('Initializing WebRTC connection...');
     
     try {
-      setStatus('connecting');
+      setConnectionState('connecting');
       
-      // Create WebRTC manager instance
-      const webRTC = new WebRTCManager({
-        onConnectionStateChange: handleConnectionStateChange,
-        onRemoteStream: handleRemoteStream,
+      // Create WebRTC manager
+      webRTCManager.current = new WebRTCManager({
         roomId: room.id,
         userId: user.uid,
+        signaling: {
+          sendMessage: async (message) => {
+            // Send signaling message to room
+            const signalRef = doc(collection(db, `rooms/${room.id}/signals`));
+            await updateDoc(signalRef, {
+              from: user.uid,
+              message,
+              createdAt: serverTimestamp()
+            });
+          }
+        },
+        onRemoteStream: (stream) => {
+          setRemoteStream(stream);
+        },
+        onConnectionStateChange: (state) => {
+          setConnectionState(state);
+        }
       });
       
-      webrtcManager.current = webRTC;
-      
-      // Initialize media
-      console.log('Initializing local media with devices:', selectedDevices);
-      await webRTC.initializeMedia({
+      // Initialize local media
+      await webRTCManager.current.initializeMedia({
         audio: { deviceId: selectedDevices.audio },
         video: { deviceId: selectedDevices.video }
       });
       
-      // Set local stream to state to display in UI
-      remoteStreamRef.current = webRTC.getLocalStream();
-      console.log('Local stream initialized:', webRTC.getLocalStream().id);
+      // Set local stream
+      setLocalStream(webRTCManager.current.getLocalStream());
       
       // Listen for signaling messages
-      console.log('Setting up signaling message listener');
-      const unsubscribe = webRTC.listenForSignalingMessages();
-      
-      setConnectionState('connected');
+      signalingUnsubscribe.current = onSnapshot(
+        collection(db, `rooms/${room.id}/signals`),
+        (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const signal = change.doc.data();
+              if (signal.from !== user.uid) {
+                webRTCManager.current.handleSignalingMessage(signal.message);
+              }
+            }
+          });
+        }
+      );
     } catch (error) {
       console.error('Error initializing WebRTC:', error);
-      setStatus('error');
-      setErrorMessage(error.message || 'Failed to initialize video chat. Please try again.');
+      setConnectionState('error');
+      toast.error('Failed to establish video connection. Please try again.');
     }
   };
 
-  const handleConnectionStateChange = (state) => {
-    console.log('WebRTC connection state changed to:', state);
-    
-    switch (state) {
-      case 'connected':
-        setStatus('connected');
-        break;
-      case 'disconnected':
-      case 'failed':
-        setStatus('error');
-        setErrorMessage('Connection lost. Please try again.');
-        break;
-      case 'connecting':
-        setStatus('connecting');
-        break;
-      default:
-        // Keep current status
-        break;
-    }
-  };
-
-  const handleRemoteStream = (stream) => {
-    console.log('Received remote stream:', stream);
-    remoteStreamRef.current = stream;
-  };
-
-  // Add cleanup function for old rooms
-  const cleanupOldRooms = async () => {
-    try {
-      const oneHourAgo = new Date();
-      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
-      const oldRoomsQuery = query(
-        collection(db, 'rooms'),
-        where('createdAt', '<=', oneHourAgo),
-        where('status', 'in', ['ended', 'waiting'])
-      );
-
-      const snapshot = await getDocs(oldRoomsQuery);
-      const batch = writeBatch(db);
-      
-      snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
+  // Toggle audio
+  const toggleAudio = () => {
+    if (localStream) {
+      const audioTracks = localStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = !track.enabled;
       });
-
-      await batch.commit();
-    } catch (error) {
-      console.error('Error cleaning up old rooms:', error);
+      setAudioEnabled(!audioEnabled);
     }
   };
 
-  // Add cleanup function for old signaling messages
-  const cleanupOldSignaling = async (roomId) => {
-    try {
-      const fiveMinutesAgo = new Date();
-      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
-
-      const oldSignalingQuery = query(
-        collection(db, 'rooms', roomId, 'signaling'),
-        where('timestamp', '<=', fiveMinutesAgo)
-      );
-
-      const snapshot = await getDocs(oldSignalingQuery);
-      const batch = writeBatch(db);
-      
-      snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
+  // Toggle video
+  const toggleVideo = () => {
+    if (localStream) {
+      const videoTracks = localStream.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = !track.enabled;
       });
-
-      await batch.commit();
-    } catch (error) {
-      console.error('Error cleaning up old signaling messages:', error);
+      setVideoEnabled(!videoEnabled);
     }
   };
 
-  // Call cleanup when component mounts and when leaving a room
-  useEffect(() => {
-    cleanupOldRooms();
-    return () => {
-      if (room?.id) {
-        cleanupOldSignaling(room.id);
-      }
-    };
-  }, []);
-
-  const handleLeaveDiscussion = async () => {
-    try {
-      // Clean up WebRTC
-      if (webrtcManager.current) {
-        webrtcManager.current.cleanup();
-        webrtcManager.current = null;
-      }
-
-      // Clean up room listener
-      if (roomUnsubscribeRef.current) {
-        roomUnsubscribeRef.current();
-        roomUnsubscribeRef.current = null;
-      }
-
-      // Update room status if we're the last participant
-      if (room) {
+  // Leave room
+  const leaveRoom = async () => {
+    if (room) {
+      try {
+        // Clean up media
+        if (localStream) {
+          localStream.getTracks().forEach(track => track.stop());
+        }
+        
+        // Clean up WebRTC
+        if (webRTCManager.current) {
+          webRTCManager.current.cleanup();
+        }
+        
+        // Remove user from room participants
         const roomRef = doc(db, 'rooms', room.id);
-        const roomDoc = await getDoc(roomRef);
-        if (roomDoc.exists()) {
-          const roomData = roomDoc.data();
+        const roomSnapshot = await getDoc(roomRef);
+        
+        if (roomSnapshot.exists()) {
+          const roomData = roomSnapshot.data();
           const updatedParticipants = roomData.participants.filter(
             p => p.uid !== user.uid
           );
-
+          
           if (updatedParticipants.length === 0) {
-            // If no participants left, delete the room
-            await deleteDoc(roomRef);
+            // Delete the room if no participants left
+            await updateDoc(roomRef, { status: 'closed' });
           } else {
-            // Otherwise update participants list
-            await updateDoc(roomRef, {
+            // Update participants list
+            await updateDoc(roomRef, { 
               participants: updatedParticipants,
-              status: 'waiting'
+              updatedAt: serverTimestamp()
             });
           }
         }
+        
+        // Reset state
+        setRoom(null);
+        setIsInRoom(false);
+        setLocalStream(null);
+        setRemoteStream(null);
+        setConnectionState('disconnected');
+        
+        if (signalingUnsubscribe.current) {
+          signalingUnsubscribe.current();
+        }
+      } catch (error) {
+        console.error('Error leaving room:', error);
+        toast.error('Error leaving the room. Please try again.');
       }
-
-      // Reset state
-      setRoom(null);
-      setIsInRoom(false);
-      setIsFinding(false);
-      setParticipants(new Map());
-      setConnectionState('disconnected');
-      setIsConnected(false);
-
-    } catch (error) {
-      console.error('Error leaving discussion:', error);
-      toast.error('Error leaving discussion. Please try refreshing the page.');
     }
   };
-
-  const toggleVideo = async () => {
-    try {
-      await webrtcManager.current?.toggleVideo(!isVideoEnabled);
-      setIsVideoEnabled(!isVideoEnabled);
-    } catch (error) {
-      console.error('Error toggling video:', error);
-    }
-  };
-
-  const toggleAudio = async () => {
-    try {
-      await webrtcManager.current?.toggleAudio(!isAudioEnabled);
-      setIsAudioEnabled(!isAudioEnabled);
-    } catch (error) {
-      console.error('Error toggling audio:', error);
-    }
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (webrtcManager.current) {
-        webrtcManager.current.disconnect();
-      }
-      if (roomUnsubscribeRef.current) {
-        roomUnsubscribeRef.current();
-      }
-    };
-  }, []);
 
   return (
     <>
@@ -544,95 +439,76 @@ const VideoChat = () => {
             />
           </div>
         ) : (
-          <div className="max-w-6xl mx-auto px-4">
-            {/* Connection status */}
-            <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${
+                <span className={`inline-block w-3 h-3 rounded-full ${
                   connectionState === 'connected' ? 'bg-green-500' :
-                  connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                  connectionState === 'connecting' ? 'bg-yellow-500' :
                   'bg-red-500'
-                }`}></div>
-                <span className="text-sm font-medium text-gray-700">
+                }`}></span>
+                <span className="text-gray-600">
                   {connectionState === 'connected' ? 'Connected' :
                    connectionState === 'connecting' ? 'Connecting...' :
                    'Disconnected'}
                 </span>
               </div>
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600">
-                  Topic: {room?.data?.topic}
-                </span>
-                <ChatTimer />
-              </div>
+              <button
+                onClick={leaveRoom}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Leave Discussion
+              </button>
             </div>
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Local video */}
-              <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
-                  You
+              {/* Local Video */}
+              <div className="bg-gray-900 rounded-lg overflow-hidden aspect-video relative">
+                {localStream && (
+                  <video
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    playsInline
+                    ref={(el) => {
+                      if (el && localStream) el.srcObject = localStream;
+                    }}
+                  ></video>
+                )}
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                  <VideoControls
+                    audioEnabled={audioEnabled}
+                    videoEnabled={videoEnabled}
+                    toggleAudio={toggleAudio}
+                    toggleVideo={toggleVideo}
+                  />
                 </div>
               </div>
-
-              {/* Remote video */}
-              {remoteStreamRef.current && (
-                <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
+              
+              {/* Remote Video */}
+              <div className="bg-gray-900 rounded-lg overflow-hidden aspect-video flex items-center justify-center">
+                {remoteStream ? (
                   <video
-                    ref={remoteStreamRef}
+                    className="w-full h-full object-cover"
                     autoPlay
                     playsInline
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
-                    Partner
+                    ref={(el) => {
+                      if (el && remoteStream) el.srcObject = remoteStream;
+                    }}
+                  ></video>
+                ) : (
+                  <div className="text-white text-center p-4">
+                    {connectionState === 'connecting' ? 
+                      'Connecting to your partner...' : 
+                      'Waiting for partner to join...'}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-
-            <VideoControls
-              isVideoEnabled={isVideoEnabled}
-              isAudioEnabled={isAudioEnabled}
-              onToggleVideo={toggleVideo}
-              onToggleAudio={toggleAudio}
-              onLeave={handleLeaveDiscussion}
-            />
           </div>
         )}
       </main>
     </>
-  );
-};
-
-const ChatTimer = () => {
-  const [duration, setDuration] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setDuration(prev => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  return (
-    <span className="text-sm text-gray-600">
-      Duration: {formatTime(duration)}
-    </span>
   );
 };
 
