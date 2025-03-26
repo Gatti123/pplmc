@@ -34,6 +34,8 @@ const VideoChat = () => {
   const roomUnsubscribeRef = useRef(null);
   const webrtcManager = useRef(null);
   const remoteStreamRef = useRef(null);
+  const [status, setStatus] = useState('disconnected');
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Set default language based on browser
   useEffect(() => {
@@ -198,7 +200,7 @@ const VideoChat = () => {
           setConnectionState('connecting');
           
           try {
-            await initializeWebRTC(otherParticipant.uid);
+            await initializeWebRTC();
             
             // Update user's recent discussions
             const userRef = doc(db, 'users', user.uid);
@@ -229,86 +231,71 @@ const VideoChat = () => {
     roomUnsubscribeRef.current = unsubscribe;
   };
 
-  const initializeWebRTC = async (remoteUserId) => {
+  const initializeWebRTC = async () => {
+    if (!user || !room) return;
+
+    console.log('Initializing WebRTC connection...');
+    
     try {
-      console.log('[VideoChat] Initializing WebRTC for remote user:', remoteUserId);
+      setStatus('connecting');
       
-      if (!selectedDevices) {
-        console.error('[VideoChat] No devices selected');
-        toast.error('Please select your camera and microphone first');
-        return;
-      }
-
-      if (!selectedDevices.video || !selectedDevices.audio) {
-        console.error('[VideoChat] Missing required devices:', selectedDevices);
-        toast.error('Both camera and microphone are required');
-        return;
-      }
-
-      if (!webrtcManager.current) {
-        console.log('[VideoChat] Creating new WebRTC manager');
-        webrtcManager.current = new WebRTCManager(room.id, user.uid, db);
-        
-        webrtcManager.current.onTrack((track, stream) => {
-          console.log('[VideoChat] Received remote track:', {
-            kind: track.kind,
-            enabled: track.enabled,
-            id: track.id
-          });
-          remoteStreamRef.current = stream;
-        });
-
-        webrtcManager.current.onParticipantLeft((participantId) => {
-          console.log('[VideoChat] Participant left:', participantId);
-          remoteStreamRef.current = null;
-        });
-
-        webrtcManager.current.onConnectionStateChange((participantId, state) => {
-          console.log('[VideoChat] Connection state changed:', {
-            participantId,
-            state
-          });
-          setConnectionState(state);
-        });
-      }
-
-      console.log('[VideoChat] Initializing media with devices:', selectedDevices);
-      await webrtcManager.current.initializeMedia(selectedDevices);
-      console.log('[VideoChat] Media initialized successfully');
-
-      console.log('[VideoChat] Creating peer connection');
-      await webrtcManager.current.createPeerConnection(remoteUserId);
-      console.log('[VideoChat] Peer connection created successfully');
-
-      // Create and send offer
-      console.log('[VideoChat] Creating offer');
-      const offer = await webrtcManager.current.createOffer(remoteUserId);
-      console.log('[VideoChat] Offer created successfully');
-      
-      await webrtcManager.current.sendSignalingMessage(remoteUserId, {
-        type: 'offer',
-        offer,
+      // Create WebRTC manager instance
+      const webRTC = new WebRTCManager({
+        onConnectionStateChange: handleConnectionStateChange,
+        onRemoteStream: handleRemoteStream,
+        roomId: room.id,
+        userId: user.uid,
       });
-      console.log('[VideoChat] Offer sent successfully');
-
-    } catch (error) {
-      console.error('[VideoChat] Error initializing WebRTC:', error);
-      toast.error(error.message || 'Failed to initialize video chat');
       
-      // Попытка восстановления
-      if (error.message.includes('Failed to construct') || error.message.includes('InvalidStateError')) {
-        console.log('[VideoChat] Attempting to recover from WebRTC error');
-        webrtcManager.current = null; // Сбрасываем менеджер
-        remoteStreamRef.current = null;
-        setConnectionState('disconnected');
-        
-        // Даем время на очистку ресурсов
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Пробуем инициализировать заново
-        initializeWebRTC(remoteUserId);
-      }
+      webrtcManager.current = webRTC;
+      
+      // Initialize media
+      console.log('Initializing local media with devices:', selectedDevices);
+      await webRTC.initializeMedia({
+        audio: { deviceId: selectedDevices.audio },
+        video: { deviceId: selectedDevices.video }
+      });
+      
+      // Set local stream to state to display in UI
+      remoteStreamRef.current = webRTC.getLocalStream();
+      console.log('Local stream initialized:', webRTC.getLocalStream().id);
+      
+      // Listen for signaling messages
+      console.log('Setting up signaling message listener');
+      const unsubscribe = webRTC.listenForSignalingMessages();
+      
+      setConnectionState('connected');
+    } catch (error) {
+      console.error('Error initializing WebRTC:', error);
+      setStatus('error');
+      setErrorMessage(error.message || 'Failed to initialize video chat. Please try again.');
     }
+  };
+
+  const handleConnectionStateChange = (state) => {
+    console.log('WebRTC connection state changed to:', state);
+    
+    switch (state) {
+      case 'connected':
+        setStatus('connected');
+        break;
+      case 'disconnected':
+      case 'failed':
+        setStatus('error');
+        setErrorMessage('Connection lost. Please try again.');
+        break;
+      case 'connecting':
+        setStatus('connecting');
+        break;
+      default:
+        // Keep current status
+        break;
+    }
+  };
+
+  const handleRemoteStream = (stream) => {
+    console.log('Received remote stream:', stream);
+    remoteStreamRef.current = stream;
   };
 
   // Add cleanup function for old rooms
