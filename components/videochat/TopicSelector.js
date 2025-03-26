@@ -153,19 +153,20 @@ const TopicSelector = ({
           <button
             key={topic.id}
             onClick={() => handleTopicSelect(topic.id)}
-            className={`p-4 rounded-lg border text-left transition-all ${
+            className={`topic-card ${
               selectedTopic === topic.id
-                ? 'bg-primary text-white border-primary shadow-lg transform scale-105'
-                : 'bg-white text-gray-700 border-gray-200 hover:border-primary hover:shadow'
+                ? 'topic-card-selected'
+                : 'topic-card-default'
             }`}
           >
             <div className="text-2xl mb-2">{topic.icon}</div>
             <div className="font-medium">{topic.name}</div>
             {onlineUsers[topic.id] > 0 && (
-              <div className={`
-                mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
-                ${selectedTopic === topic.id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}
-              `}>
+              <div className={`online-badge ${
+                selectedTopic === topic.id 
+                  ? 'online-badge-selected' 
+                  : 'online-badge-default'
+              }`}>
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                 {onlineUsers[topic.id]} online
               </div>

@@ -4,13 +4,10 @@
 @tailwind utilities;
 
 :root {
-  --primary: #800080;
-  --primary-dark: #600060;
-  --secondary: #f0f0f0;
-  --color-primary: #4F46E5;
-  --color-primary-dark: #4338CA;
-  --color-secondary: #F3F4F6;
-  --color-secondary-dark: #E5E7EB;
+  --primary: #4F46E5;
+  --primary-dark: #4338CA;
+  --secondary: #F3F4F6;
+  --secondary-dark: #E5E7EB;
 }
 
 html,
@@ -31,45 +28,13 @@ body {
   }
   
   .btn-secondary {
-    @apply bg-secondary hover:bg-secondary-dark text-primary font-bold py-3 px-8 rounded-full text-lg transition-colors;
+    @apply bg-secondary text-gray-700 font-medium py-3 px-8 rounded-lg hover:bg-secondary-dark transition-colors;
   }
   
   .card {
     @apply bg-white rounded-lg shadow-md p-6;
   }
-  
-  .bg-primary {
-    background-color: var(--color-primary);
-  }
-  
-  .bg-primary-dark {
-    background-color: var(--color-primary-dark);
-  }
-  
-  .text-primary {
-    color: var(--color-primary);
-  }
-  
-  .border-primary {
-    border-color: var(--color-primary);
-  }
-  
-  .hover\:bg-primary-dark:hover {
-    background-color: var(--color-primary-dark);
-  }
-  
-  .focus\:ring-primary:focus {
-    --tw-ring-color: var(--color-primary);
-  }
-  
-  .focus\:border-primary:focus {
-    border-color: var(--color-primary);
-  }
-  
-  .bg-secondary {
-    background-color: var(--color-secondary);
-  }
-  
+
   .input-field {
     @apply px-4 py-2 border border-gray-300 rounded-lg shadow-sm
     focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
@@ -80,16 +45,12 @@ body {
     @apply border-gray-400;
   }
 
-  .select-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white;
-  }
-
   .filter-section {
-    @apply bg-white rounded-lg shadow-sm p-6 border border-gray-200;
+    @apply bg-white rounded-lg shadow p-6 mb-6 border border-gray-200;
   }
 
   .filter-grid {
-    @apply grid grid-cols-1 md:grid-cols-3 gap-6;
+    @apply grid grid-cols-1 md:grid-cols-3 gap-4;
   }
 
   .filter-label {
@@ -97,9 +58,33 @@ body {
   }
 
   .filter-select {
-    @apply block w-full rounded-lg border-gray-300 shadow-sm
-    focus:border-primary focus:ring-primary
-    text-base;
+    @apply block w-full px-3 py-2 rounded-lg border border-gray-300 
+    focus:ring-2 focus:ring-primary focus:border-transparent
+    bg-white text-gray-900 shadow-sm;
+  }
+
+  .topic-card {
+    @apply p-4 rounded-lg border transition-all duration-200;
+  }
+
+  .topic-card-selected {
+    @apply bg-primary text-white border-primary shadow-lg scale-105;
+  }
+
+  .topic-card-default {
+    @apply bg-white text-gray-700 border-gray-200 hover:border-primary hover:shadow;
+  }
+
+  .online-badge {
+    @apply mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium;
+  }
+
+  .online-badge-selected {
+    @apply bg-white/20 text-white;
+  }
+
+  .online-badge-default {
+    @apply bg-primary/10 text-primary;
   }
 }
 
@@ -113,48 +98,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: theme('colors.primary.DEFAULT');
+  background: var(--primary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: theme('colors.primary.dark');
-}
-
-/* Custom colors */
-.bg-primary {
-  background-color: var(--color-primary);
-}
-
-.bg-primary-dark {
-  background-color: var(--color-primary-dark);
-}
-
-.text-primary {
-  color: var(--color-primary);
-}
-
-.border-primary {
-  border-color: var(--color-primary);
-}
-
-.bg-secondary {
-  background-color: var(--color-secondary);
-}
-
-/* Focus and hover styles */
-.focus\:ring-primary:focus {
-  --tw-ring-color: var(--color-primary);
-}
-
-.focus\:border-primary:focus {
-  border-color: var(--color-primary);
-}
-
-.hover\:bg-primary-dark:hover {
-  background-color: var(--color-primary-dark);
-}
-
-.hover\:border-primary:hover {
-  border-color: var(--color-primary);
+  background: var(--primary-dark);
 } 

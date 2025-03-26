@@ -1,21 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./pages/**/*.{js,ts,jsx,tsx}",
-    "./components/**/*.{js,ts,jsx,tsx}",
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#800080', // Purple
-          light: '#a64ca6',
-          dark: '#5c005c',
+          DEFAULT: 'var(--primary)',
+          dark: 'var(--primary-dark)',
         },
         secondary: {
-          DEFAULT: '#F5F5DC', // Beige
-          light: '#fffff0',
-          dark: '#e6e6c8',
+          DEFAULT: 'var(--secondary)',
+          dark: 'var(--secondary-dark)',
         },
       },
       animation: {
