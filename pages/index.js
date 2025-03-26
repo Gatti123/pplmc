@@ -90,7 +90,7 @@ export default function Home() {
           </p>
           {!user ? (
             <Link 
-              href="/auth/signin" 
+              href="/auth" 
               className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-md shadow-sm text-indigo-700 bg-white hover:bg-indigo-50 transition-colors"
             >
               <FaUserFriends className="mr-2" />

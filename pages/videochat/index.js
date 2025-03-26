@@ -11,7 +11,7 @@ const VideoChatPage = () => {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/auth/signin?redirect=/videochat');
+      router.push('/auth?redirect=/videochat');
     }
   }, [user, loading, router]);
 

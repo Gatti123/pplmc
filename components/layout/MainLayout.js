@@ -43,7 +43,7 @@ const MainLayout = ({ children }) => {
           )}
           
           {!user && (
-            <Link href="/auth/signin" className="hover:text-indigo-200 transition-colors">
+            <Link href="/auth" className="hover:text-indigo-200 transition-colors">
               Sign In
             </Link>
           )}
