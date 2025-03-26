@@ -80,11 +80,11 @@ body {
   }
 
   .online-badge-selected {
-    @apply bg-white/20 text-white;
+    @apply bg-white bg-opacity-20 text-white;
   }
 
   .online-badge-default {
-    @apply bg-primary/10 text-primary;
+    @apply bg-primary bg-opacity-10 text-primary;
   }
 }
 
