@@ -91,8 +91,7 @@ const TopicSelector = ({
     // Create a query for waiting rooms only
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', '==', 'waiting'), // Only count waiting rooms
-      where('language', '==', filters.language)
+      where('status', '==', 'waiting')
     );
 
     // Subscribe to real-time updates
@@ -107,26 +106,21 @@ const TopicSelector = ({
       // Count users in waiting rooms for each topic
       snapshot.docs.forEach(doc => {
         const room = doc.data();
-        if (!room.topic || !topicCounts.hasOwnProperty(room.topic)) return;
         
-        // Only count rooms that match the current filters
+        // Skip if room doesn't match current filters
+        if (room.language !== filters.language) return;
         if (filters.continent !== 'any' && room.continent !== filters.continent) return;
-
-        // Don't count our own rooms
+        
+        // Skip own rooms
         if (room.createdBy === user.uid) return;
-
-        // Increment count for this topic
-        topicCounts[room.topic]++;
-      });
-
-      console.log('[TopicSelector] Available partners:', {
-        byTopic: topicCounts,
-        timestamp: new Date().toISOString()
+        
+        // Increment count for this topic if it exists
+        if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
+          topicCounts[room.topic]++;
+        }
       });
 
       setOnlineUsers(topicCounts);
-    }, (error) => {
-      console.error('[TopicSelector] Error in room listener:', error);
     });
 
     return () => unsubscribe();
@@ -144,7 +138,7 @@ const TopicSelector = ({
   return (
     <div className="space-y-6 p-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-700 mb-2">Select a Topic</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Find Discussion Partner</h2>
         <input
           type="text"
           placeholder="Search topics..."
@@ -154,27 +148,23 @@ const TopicSelector = ({
         />
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {filteredTopics.map((topic) => (
           <button
             key={topic.id}
             onClick={() => handleTopicSelect(topic.id)}
-            className={`p-3 rounded-lg border text-left transition-colors relative ${
+            className={`p-4 rounded-lg border text-left transition-all ${
               selectedTopic === topic.id
-                ? 'bg-primary text-white border-primary'
-                : 'bg-white text-gray-700 border-gray-300 hover:border-primary'
+                ? 'bg-primary text-white border-primary shadow-lg transform scale-105'
+                : 'bg-white text-gray-700 border-gray-200 hover:border-primary hover:shadow'
             }`}
           >
-            <div className="text-xl mb-1">{topic.icon}</div>
+            <div className="text-2xl mb-2">{topic.icon}</div>
             <div className="font-medium">{topic.name}</div>
             {onlineUsers[topic.id] > 0 && (
               <div className={`
-                absolute top-2 right-2 
-                px-2 py-0.5 
-                rounded-full 
-                text-xs font-medium 
-                flex items-center gap-1
-                ${selectedTopic === topic.id ? 'bg-white text-primary' : 'bg-primary text-white'}
+                mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium
+                ${selectedTopic === topic.id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}
               `}>
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                 {onlineUsers[topic.id]} online
@@ -186,13 +176,11 @@ const TopicSelector = ({
 
       {/* Filters Section */}
       <div className="filter-section">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">Discussion Settings</h3>
+        <h3 className="text-xl font-semibold text-gray-900 mb-6">Discussion Settings</h3>
         <div className="filter-grid">
           {/* Language Selection */}
-          <div>
-            <label className="filter-label">
-              Language
-            </label>
+          <div className="space-y-2">
+            <label className="filter-label">Language</label>
             <select
               value={filters.language}
               onChange={(e) => setFilters({ ...filters, language: e.target.value })}
@@ -207,10 +195,8 @@ const TopicSelector = ({
           </div>
 
           {/* Continent Selection */}
-          <div>
-            <label className="filter-label">
-              Region
-            </label>
+          <div className="space-y-2">
+            <label className="filter-label">Region</label>
             <select
               value={filters.continent}
               onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
@@ -225,10 +211,8 @@ const TopicSelector = ({
           </div>
 
           {/* Role Selection */}
-          <div>
-            <label className="filter-label">
-              Role
-            </label>
+          <div className="space-y-2">
+            <label className="filter-label">Role</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value)}
@@ -244,30 +228,39 @@ const TopicSelector = ({
         </div>
       </div>
 
+      {/* Conversation Starters */}
       {showStarters && selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
-        <div className="mt-4 p-4 bg-secondary rounded-lg">
-          <h3 className="font-semibold mb-2">Conversation Starters:</h3>
-          <ul className="list-disc pl-5 space-y-1">
+        <div className="bg-secondary rounded-lg p-6 shadow-sm border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversation Starters</h3>
+          <ul className="space-y-3">
             {CONVERSATION_STARTERS[selectedTopic].map((starter, index) => (
-              <li key={index}>{starter}</li>
+              <li key={index} className="flex items-start gap-2">
+                <span className="text-primary">•</span>
+                <span className="text-gray-700">{starter}</span>
+              </li>
             ))}
           </ul>
         </div>
       )}
 
-      <div className="flex justify-center mt-6">
+      {/* Find Partner Button */}
+      <div className="flex justify-center pt-4">
         <button
           onClick={onFindPartner}
           disabled={!selectedTopic || isFinding}
-          className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
-            !selectedTopic || isFinding
+          className={`
+            px-8 py-4 rounded-lg font-semibold text-lg
+            transition-all duration-200 transform
+            flex items-center gap-3
+            ${!selectedTopic || isFinding
               ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-primary text-white hover:bg-primary-dark'
-          }`}
+              : 'bg-primary text-white hover:bg-primary-dark hover:scale-105'
+            }
+          `}
         >
           {isFinding ? (
             <>
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
@@ -280,9 +273,11 @@ const TopicSelector = ({
       </div>
 
       {isFinding && (
-        <div className="mt-4 text-center text-sm text-gray-600">
-          <p>Looking for someone interested in {TOPICS.find(t => t.id === selectedTopic)?.name}</p>
-          <p>This may take a few moments...</p>
+        <div className="text-center space-y-2 animate-pulse">
+          <p className="text-gray-700">
+            Looking for someone interested in {TOPICS.find(t => t.id === selectedTopic)?.name}
+          </p>
+          <p className="text-gray-500 text-sm">This may take a few moments...</p>
         </div>
       )}
     </div>
