@@ -1,45 +1,44 @@
-import { useContext } from 'react';
-import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts';
+import Head from 'next/head';
 import Link from 'next/link';
-import { FaVideo, FaArrowRight } from 'react-icons/fa';
+import { FaVideo, FaUserFriends, FaComments } from 'react-icons/fa';
 
-const Home = () => {
+export default function Home() {
   const { user } = useAuth();
-  const router = useRouter();
-
-  const handleStartDiscussion = () => {
-    if (user) {
-      router.push('/videochat');
-    } else {
-      router.push('/auth');
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <div className="bg-gradient-to-br from-primary-light to-primary-dark py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6">
-            Welcome to Polemica
-          </h1>
-          <p className="text-xl text-secondary mb-10 max-w-3xl mx-auto">
-            Connect with others through meaningful discussions in a video chat format.
-            Debate ideas, share perspectives, and broaden your horizons.
-          </p>
-          <button
-            onClick={handleStartDiscussion}
-            className="bg-secondary text-primary font-bold py-3 px-8 rounded-full text-lg hover:bg-secondary-dark transition-colors inline-flex items-center"
-          >
-            <FaVideo className="mr-2" />
-            Start a Discussion
-            <FaArrowRight className="ml-2" />
-          </button>
+    <>
+      <Head>
+        <title>Polemica - Engage in Meaningful Video Discussions</title>
+        <meta name="description" content="Polemica connects you with others for meaningful debates and discussions on various topics in a video chat format." />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+
+      <div className="bg-gradient-to-b from-indigo-50 to-white">
+        {/* Hero Section */}
+        <div className="pt-16 pb-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="text-center">
+            <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">
+              Connect through meaningful discussions
+            </h1>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+              Debate ideas, share perspectives, and broaden your horizons in a video chat format.
+            </p>
+            
+            <div className="mt-8">
+              <Link 
+                href="/videochat" 
+                className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+              >
+                <FaVideo className="mr-2" />
+                Start a Discussion
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Features Section */}
+      {/* How It Works Section */}
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-gray-900 mb-12">
@@ -48,7 +47,7 @@ const Home = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white text-xl font-bold mb-4">
+              <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold mb-4">
                 1
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Choose a Topic</h3>
@@ -58,7 +57,7 @@ const Home = () => {
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white text-xl font-bold mb-4">
+              <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold mb-4">
                 2
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Get Matched</h3>
@@ -68,7 +67,7 @@ const Home = () => {
             </div>
             
             <div className="bg-white p-6 rounded-lg shadow-md">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white text-xl font-bold mb-4">
+              <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold mb-4">
                 3
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">Start Discussing</h3>
@@ -81,29 +80,33 @@ const Home = () => {
       </div>
 
       {/* CTA Section */}
-      <div className="bg-secondary py-16">
+      <div className="bg-indigo-700 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-primary mb-6">
+          <h2 className="text-3xl font-bold text-white mb-4">
             Ready to join the conversation?
           </h2>
-          <p className="text-lg text-gray-700 mb-8 max-w-3xl mx-auto">
-            Sign up now and start connecting with people from around the world through meaningful discussions.
+          <p className="text-indigo-100 mb-8 max-w-3xl mx-auto">
+            Join thousands of users having meaningful discussions on topics that matter.
           </p>
-          {user ? (
-            <Link href="/videochat" className="btn-primary inline-flex items-center">
-              <FaVideo className="mr-2" />
-              Start a Discussion
+          {!user ? (
+            <Link 
+              href="/auth/signin" 
+              className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-md shadow-sm text-indigo-700 bg-white hover:bg-indigo-50 transition-colors"
+            >
+              <FaUserFriends className="mr-2" />
+              Sign In to Get Started
             </Link>
           ) : (
-            <Link href="/auth" className="btn-primary inline-flex items-center">
-              Sign Up Now
-              <FaArrowRight className="ml-2" />
+            <Link 
+              href="/videochat" 
+              className="inline-flex items-center px-8 py-4 border border-transparent text-base font-medium rounded-md shadow-sm text-indigo-700 bg-white hover:bg-indigo-50 transition-colors"
+            >
+              <FaComments className="mr-2" />
+              Find a Discussion Partner
             </Link>
           )}
         </div>
       </div>
-    </div>
+    </>
   );
-};
-
-export default Home;
+}

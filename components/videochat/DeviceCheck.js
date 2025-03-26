@@ -1,196 +1,179 @@
-import { useState, useRef, useEffect } from 'react';
-import { generateTestTone } from '@/public/test-audio';
+import { useState, useEffect, useRef } from 'react';
+import { toast } from 'react-toastify';
 
-const DeviceCheck = ({ onComplete }) => {
-  const [devices, setDevices] = useState({ video: [], audio: [] });
-  const [selectedDevices, setSelectedDevices] = useState({ video: '', audio: '' });
-  const [stream, setStream] = useState(null);
-  const [error, setError] = useState(null);
-  const [isTestingAudio, setIsTestingAudio] = useState(false);
+const DeviceCheck = ({ onDeviceSelect }) => {
+  const [videoDevices, setVideoDevices] = useState([]);
+  const [audioDevices, setAudioDevices] = useState([]);
+  const [selectedVideo, setSelectedVideo] = useState('');
+  const [selectedAudio, setSelectedAudio] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [testStream, setTestStream] = useState(null);
   const videoRef = useRef(null);
-  const audioContextRef = useRef(null);
 
+  // Initialize device list
   useEffect(() => {
-    // Get available devices
-    const getDevices = async () => {
+    async function getDevices() {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        setDevices({
-          video: devices.filter(d => d.kind === 'videoinput'),
-          audio: devices.filter(d => d.kind === 'audioinput')
-        });
+        setIsLoading(true);
         
-        // Set default devices
-        setSelectedDevices({
-          video: devices.find(d => d.kind === 'videoinput')?.deviceId || '',
-          audio: devices.find(d => d.kind === 'audioinput')?.deviceId || ''
-        });
+        // Request permissions first
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        
+        // Then get device list
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        const videos = devices.filter(device => device.kind === 'videoinput');
+        const audios = devices.filter(device => device.kind === 'audioinput');
+        
+        setVideoDevices(videos);
+        setAudioDevices(audios);
+        
+        if (videos.length > 0) {
+          setSelectedVideo(videos[0].deviceId);
+        }
+        
+        if (audios.length > 0) {
+          setSelectedAudio(audios[0].deviceId);
+        }
+        
+        setIsLoading(false);
       } catch (error) {
-        console.error('Error getting devices:', error);
-        setError('Could not access media devices');
+        console.error('Error accessing media devices:', error);
+        toast.error('Failed to access camera or microphone. Please ensure permissions are granted.');
+        setIsLoading(false);
       }
-    };
-
-    getDevices();
-
-    // Initialize AudioContext
-    try {
-      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (error) {
-      console.error('Error creating AudioContext:', error);
     }
-
-    return () => {
-      if (audioContextRef.current?.state !== 'closed') {
-        audioContextRef.current?.close();
-      }
-    };
+    
+    getDevices();
   }, []);
 
+  // Update preview when devices change
   useEffect(() => {
-    // Start media stream with selected devices
-    const startStream = async () => {
+    async function updatePreview() {
+      // Only proceed if devices are selected
+      if (!selectedVideo || !selectedAudio) return;
+      
+      // Stop any existing stream
+      if (testStream) {
+        testStream.getTracks().forEach(track => track.stop());
+      }
+      
       try {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: selectedDevices.video ? { deviceId: { exact: selectedDevices.video } } : false,
-          audio: selectedDevices.audio ? { deviceId: { exact: selectedDevices.audio } } : false
+        // Get a new stream with selected devices
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: selectedVideo },
+          audio: { deviceId: selectedAudio }
         });
-
-        setStream(newStream);
+        
+        // Update state and preview
+        setTestStream(stream);
+        
         if (videoRef.current) {
-          videoRef.current.srcObject = newStream;
+          videoRef.current.srcObject = stream;
         }
-        setError(null);
       } catch (error) {
-        console.error('Error accessing media:', error);
-        setError('Could not access selected devices');
+        console.error('Error setting up preview:', error);
+        toast.error('Error setting up camera preview. Please try a different device.');
       }
-    };
-
-    if (selectedDevices.video || selectedDevices.audio) {
-      startStream();
     }
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [selectedDevices]);
-
-  const handleDeviceChange = (type, deviceId) => {
-    setSelectedDevices(prev => ({ ...prev, [type]: deviceId }));
-  };
-
-  const testAudio = async () => {
-    if (!audioContextRef.current) return;
     
-    setIsTestingAudio(true);
-    try {
-      // Resume AudioContext if it's suspended
-      if (audioContextRef.current.state === 'suspended') {
-        await audioContextRef.current.resume();
+    updatePreview();
+    
+    // Cleanup on component unmount
+    return () => {
+      if (testStream) {
+        testStream.getTracks().forEach(track => track.stop());
       }
-      
-      // Generate and play test tone
-      generateTestTone(audioContextRef.current);
-      
-      // Reset testing state after 1 second
-      setTimeout(() => setIsTestingAudio(false), 1000);
-    } catch (error) {
-      console.error('Error testing audio:', error);
-      setIsTestingAudio(false);
-    }
-  };
+    };
+  }, [selectedVideo, selectedAudio]);
 
-  const handleComplete = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+  // Handle continue button
+  const handleContinue = () => {
+    if (testStream) {
+      // Stop the test stream
+      testStream.getTracks().forEach(track => track.stop());
+      setTestStream(null);
     }
-    if (audioContextRef.current?.state !== 'closed') {
-      audioContextRef.current?.close();
-    }
-    onComplete(selectedDevices);
+    
+    // Call the parent callback with selected devices
+    onDeviceSelect({
+      video: selectedVideo,
+      audio: selectedAudio
+    });
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-4">Device Check</h2>
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold text-gray-900 mb-6">Check Your Devices</h2>
       
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-          {error}
+      {isLoading ? (
+        <div className="text-center py-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Accessing your camera and microphone...</p>
         </div>
-      )}
-
-      <div className="space-y-6">
-        {/* Video preview */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Camera Preview
-          </label>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-48 bg-gray-100 rounded-md object-cover"
-          />
-          <select
-            value={selectedDevices.video}
-            onChange={(e) => handleDeviceChange('video', e.target.value)}
-            className="mt-2 input-field w-full"
-          >
-            <option value="">No camera</option>
-            {devices.video.map(device => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `Camera ${devices.video.indexOf(device) + 1}`}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Audio selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Microphone
-          </label>
-          <select
-            value={selectedDevices.audio}
-            onChange={(e) => handleDeviceChange('audio', e.target.value)}
-            className="input-field w-full"
-          >
-            <option value="">No microphone</option>
-            {devices.audio.map(device => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `Microphone ${devices.audio.indexOf(device) + 1}`}
-              </option>
-            ))}
-          </select>
+      ) : (
+        <>
+          <div className="mb-6">
+            <p className="text-gray-600 mb-4">Please check your camera and microphone before starting a video chat.</p>
+            
+            <div className="bg-gray-900 rounded-lg overflow-hidden aspect-video mb-6">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              ></video>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Camera
+                </label>
+                <select
+                  value={selectedVideo}
+                  onChange={(e) => setSelectedVideo(e.target.value)}
+                  className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                >
+                  {videoDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Camera ${videoDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Microphone
+                </label>
+                <select
+                  value={selectedAudio}
+                  onChange={(e) => setSelectedAudio(e.target.value)}
+                  className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                >
+                  {audioDevices.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone ${audioDevices.indexOf(device) + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
           
-          <button
-            onClick={testAudio}
-            disabled={!selectedDevices.audio || isTestingAudio}
-            className="mt-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors disabled:bg-gray-300"
-          >
-            {isTestingAudio ? 'Testing...' : 'Test Microphone'}
-          </button>
-        </div>
-
-        {/* Continue button */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleComplete}
-            className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors"
-          >
-            Continue to Video Chat
-          </button>
-        </div>
-      </div>
+          <div className="flex justify-end">
+            <button
+              onClick={handleContinue}
+              disabled={!selectedVideo || !selectedAudio}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors"
+            >
+              Continue
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
