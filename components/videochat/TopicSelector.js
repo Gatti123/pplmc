@@ -88,10 +88,10 @@ const TopicSelector = ({
   useEffect(() => {
     if (!user) return;
 
-    // Create a query for waiting rooms only
+    // Create a query for all active rooms
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', '==', 'waiting')
+      where('status', 'in', ['waiting', 'active'])
     );
 
     // Subscribe to real-time updates
@@ -103,7 +103,7 @@ const TopicSelector = ({
         topicCounts[topic.id] = 0;
       });
 
-      // Count users in waiting rooms for each topic
+      // Count users in rooms
       snapshot.docs.forEach(doc => {
         const room = doc.data();
         
@@ -114,9 +114,13 @@ const TopicSelector = ({
         // Skip own rooms
         if (room.createdBy === user.uid) return;
         
-        // Increment count for this topic if it exists
+        // Count all participants in the room
         if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
-          topicCounts[room.topic]++;
+          if (room.status === 'waiting') {
+            topicCounts[room.topic]++;
+          } else if (room.status === 'active' && room.participants) {
+            topicCounts[room.topic] += room.participants.length;
+          }
         }
       });
 

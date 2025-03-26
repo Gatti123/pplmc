@@ -452,12 +452,23 @@ const VideoChat = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6">
+    <>
       {showDeviceCheck ? (
-        <div className="max-w-2xl mx-auto">
-          <DeviceCheck onComplete={handleDeviceSelect} />
+        <DeviceCheck onDeviceSelect={handleDeviceSelect} />
+      ) : !isInRoom ? (
+        <div className="main-container">
+          <TopicSelector
+            selectedTopic={selectedTopic}
+            onTopicSelect={setSelectedTopic}
+            filters={filters}
+            setFilters={setFilters}
+            role={role}
+            setRole={setRole}
+            onFindPartner={findDiscussion}
+            isFinding={isFinding}
+          />
         </div>
-      ) : isInRoom ? (
+      ) : (
         <div className="max-w-6xl mx-auto px-4">
           {/* Connection status */}
           <div className="mb-4 flex items-center justify-between bg-white p-4 rounded-lg shadow-sm">
@@ -483,63 +494,45 @@ const VideoChat = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Local video */}
-            <div className="relative">
+            <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-[360px] bg-gray-900 rounded-lg object-cover"
+                className="w-full h-full object-cover"
               />
-              <div className="absolute bottom-4 left-4">
-                <span className="px-2 py-1 bg-gray-900 text-white rounded text-sm">
-                  You
-                </span>
+              <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
+                You
               </div>
             </div>
 
-            {/* Remote videos */}
+            {/* Remote video */}
             {remoteStreamRef.current && (
-              <div className="relative">
+              <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
                 <video
+                  ref={remoteStreamRef}
                   autoPlay
                   playsInline
-                  className="w-full h-[360px] bg-gray-900 rounded-lg object-cover"
-                  srcObject={remoteStreamRef.current}
+                  className="w-full h-full object-cover"
                 />
-                <div className="absolute bottom-4 left-4">
-                  <span className="px-2 py-1 bg-gray-900 text-white rounded text-sm">
-                    Partner
-                  </span>
+                <div className="absolute bottom-4 left-4 text-white text-sm font-medium bg-black/50 px-2 py-1 rounded">
+                  Partner
                 </div>
               </div>
             )}
           </div>
 
-          {/* Video controls */}
           <VideoControls
             isVideoEnabled={isVideoEnabled}
             isAudioEnabled={isAudioEnabled}
-            onToggleVideo={() => setIsVideoEnabled(!isVideoEnabled)}
-            onToggleAudio={() => setIsAudioEnabled(!isAudioEnabled)}
+            onToggleVideo={toggleVideo}
+            onToggleAudio={toggleAudio}
             onLeave={handleLeaveDiscussion}
           />
         </div>
-      ) : (
-        <div className="max-w-4xl mx-auto px-4">
-          <TopicSelector
-            selectedTopic={selectedTopic}
-            onTopicSelect={setSelectedTopic}
-            filters={filters}
-            setFilters={setFilters}
-            role={role}
-            setRole={setRole}
-            onFindPartner={findDiscussion}
-            isFinding={isFinding}
-          />
-        </div>
       )}
-    </div>
+    </>
   );
 };
 
