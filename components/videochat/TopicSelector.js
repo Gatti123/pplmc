@@ -164,8 +164,8 @@ const TopicSelector = ({
             {onlineUsers[topic.id] > 0 && (
               <div className={`online-badge ${
                 selectedTopic === topic.id 
-                  ? 'bg-white bg-opacity-20 text-white' 
-                  : 'bg-primary bg-opacity-10 text-primary'
+                  ? 'online-badge-selected' 
+                  : 'online-badge-default'
               }`}>
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                 {onlineUsers[topic.id]} online
