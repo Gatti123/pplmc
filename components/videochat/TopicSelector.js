@@ -178,11 +178,13 @@ const TopicSelector = ({
               <div className="text-2xl mb-2">{topic.icon}</div>
               <div className="font-medium">{topic.name}</div>
               {onlineUsers[topic.id] > 0 && (
-                <div className={`online-badge ${
-                  selectedTopic === topic.id 
-                    ? 'online-badge-selected' 
-                    : 'online-badge-default'
-                }`}>
+                <div 
+                  className="online-badge"
+                  style={{
+                    backgroundColor: selectedTopic === topic.id ? 'rgba(255, 255, 255, 0.2)' : 'rgba(79, 70, 229, 0.1)',
+                    color: selectedTopic === topic.id ? 'white' : '#4F46E5'
+                  }}
+                >
                   <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                   {onlineUsers[topic.id]} online
                 </div>

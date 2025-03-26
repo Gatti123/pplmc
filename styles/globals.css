@@ -91,6 +91,10 @@ body {
   .online-badge {
     @apply mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium;
   }
+
+  .topics-grid {
+    @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4;
+  }
 }
 
 .online-badge-selected {
@@ -101,12 +105,6 @@ body {
 .online-badge-default {
   background-color: var(--primary-light);
   color: var(--primary);
-}
-
-@layer components {
-  .topics-grid {
-    @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4;
-  }
 }
 
 /* Custom scrollbar */
