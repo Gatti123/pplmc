@@ -16,6 +16,7 @@ body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
     Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+  @apply bg-gray-50;
 }
 
 * {
@@ -46,7 +47,7 @@ body {
   }
 
   .input-field {
-    @apply px-4 py-2 border border-gray-300 rounded-lg shadow-sm
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm
     focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
     bg-white text-gray-900;
   }
@@ -74,15 +75,15 @@ body {
   }
 
   .topic-card {
-    @apply p-4 rounded-lg border transition-all duration-200;
+    @apply p-4 rounded-lg border transition-all duration-200 flex flex-col items-center;
   }
 
   .topic-card-selected {
-    @apply bg-primary text-white border-primary shadow-lg;
+    @apply bg-primary text-white border-primary shadow-lg scale-105;
   }
 
   .topic-card-default {
-    @apply bg-white text-gray-700 border-gray-200 hover:border-primary;
+    @apply bg-white text-gray-700 border-gray-200 hover:border-primary hover:shadow;
   }
 
   .online-badge {

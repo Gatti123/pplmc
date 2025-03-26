@@ -257,11 +257,11 @@ const TopicSelector = ({
         </div>
 
         {/* Conversation Starters */}
-        {selectedTopic && TOPICS.find(t => t.id === selectedTopic)?.starters && (
+        {selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
           <div className="mt-6">
             <h3 className="text-lg font-semibold mb-3">Conversation Starters</h3>
             <ul className="space-y-2 text-gray-600">
-              {TOPICS.find(t => t.id === selectedTopic).starters.map((starter, index) => (
+              {CONVERSATION_STARTERS[selectedTopic].map((starter, index) => (
                 <li key={index} className="flex items-start gap-2">
                   <span className="text-primary">•</span>
                   <span>{starter}</span>
