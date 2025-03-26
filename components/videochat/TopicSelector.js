@@ -92,7 +92,7 @@ const TopicSelector = ({
 
     const roomsQuery = query(
       collection(db, 'rooms'),
-      where('status', '==', 'waiting')
+      where('status', 'in', ['waiting', 'active'])
     );
 
     const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
@@ -112,7 +112,8 @@ const TopicSelector = ({
           id: doc.id,
           topic: room.topic,
           status: room.status,
-          createdBy: room.createdBy
+          createdBy: room.createdBy,
+          participants: room.participants?.length || 0
         });
         
         // Skip own rooms
@@ -121,10 +122,12 @@ const TopicSelector = ({
           return;
         }
         
-        // Count waiting rooms for each topic
+        // Count participants in each room
         if (room.topic && topicCounts.hasOwnProperty(room.topic)) {
-          console.log('Incrementing count for topic:', room.topic);
-          topicCounts[room.topic]++;
+          if (room.participants) {
+            console.log(`Adding ${room.participants.length} participants for topic:`, room.topic);
+            topicCounts[room.topic] += room.participants.length;
+          }
         }
       });
 
@@ -235,7 +238,7 @@ const TopicSelector = ({
                     : 'online-badge-default'
                 }`}>
                   <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                  {onlineUsers[topic.id]} waiting
+                  {onlineUsers[topic.id]} online
                 </div>
               )}
             </button>
