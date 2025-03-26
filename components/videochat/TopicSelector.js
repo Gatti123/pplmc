@@ -163,60 +163,6 @@ const TopicSelector = ({
           />
         </div>
 
-        {/* Filters Section */}
-        <div className="filter-section mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Discussion Settings</h3>
-          <div className="filter-grid">
-            {/* Language Selection */}
-            <div className="space-y-2">
-              <label className="filter-label">Language</label>
-              <select
-                value={filters.language}
-                onChange={(e) => setFilters({ ...filters, language: e.target.value })}
-                className="filter-select"
-              >
-                {LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Continent Selection */}
-            <div className="space-y-2">
-              <label className="filter-label">Region</label>
-              <select
-                value={filters.continent}
-                onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
-                className="filter-select"
-              >
-                {CONTINENTS.map((continent) => (
-                  <option key={continent.code} value={continent.code}>
-                    {continent.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Role Selection */}
-            <div className="space-y-2">
-              <label className="filter-label">Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="filter-select"
-              >
-                {ROLES.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
         {/* Topics Grid */}
         <div className="topics-grid">
           {filteredTopics.map((topic) => (
@@ -243,17 +189,6 @@ const TopicSelector = ({
               )}
             </button>
           ))}
-        </div>
-
-        {/* Start Discussion Button */}
-        <div className="mt-6">
-          <button
-            onClick={onFindPartner}
-            disabled={!selectedTopic || isFinding}
-            className="w-full bg-primary text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-dark transition-colors"
-          >
-            {isFinding ? 'Finding partner...' : 'Start Discussion'}
-          </button>
         </div>
 
         {/* Conversation Starters */}

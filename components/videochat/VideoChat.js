@@ -455,7 +455,83 @@ const VideoChat = () => {
         {showDeviceCheck ? (
           <DeviceCheck onDeviceSelect={handleDeviceSelect} />
         ) : !isInRoom ? (
-          <div className="main-container">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 mb-4">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Discussion Settings</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Language Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                  <select
+                    value={filters.language}
+                    onChange={(e) => setFilters({ ...filters, language: e.target.value })}
+                    className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  >
+                    {[
+                      { code: 'en', name: 'English' },
+                      { code: 'es', name: 'Spanish' },
+                      { code: 'fr', name: 'French' },
+                      { code: 'ru', name: 'Russian' }
+                    ].map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Region Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Region</label>
+                  <select
+                    value={filters.continent}
+                    onChange={(e) => setFilters({ ...filters, continent: e.target.value })}
+                    className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  >
+                    {[
+                      { code: 'any', name: 'Any Region' },
+                      { code: 'na', name: 'North America' },
+                      { code: 'eu', name: 'Europe' },
+                      { code: 'as', name: 'Asia' }
+                    ].map((continent) => (
+                      <option key={continent.code} value={continent.code}>
+                        {continent.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Role Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  >
+                    {[
+                      { id: 'participant', name: 'Participant' },
+                      { id: 'observer', name: 'Observer' }
+                    ].map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {selectedTopic && (
+                <button
+                  onClick={findDiscussion}
+                  disabled={isFinding}
+                  className="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-700 transition-colors"
+                >
+                  {isFinding ? 'Finding partner...' : 'Start Discussion'}
+                </button>
+              )}
+            </div>
+            
             <TopicSelector
               selectedTopic={selectedTopic}
               onTopicSelect={setSelectedTopic}
