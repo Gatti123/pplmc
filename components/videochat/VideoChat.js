@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { collection, doc, getDoc, onSnapshot, updateDoc, serverTimestamp, query, where, addDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts';
 import { useDispatch, useSelector } from 'react-redux';
 import TopicSelector from './TopicSelector';

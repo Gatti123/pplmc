@@ -4,19 +4,21 @@
 @tailwind utilities;
 
 :root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
   --primary: #4F46E5;
   --primary-dark: #4338CA;
   --secondary: #F3F4F6;
   --secondary-dark: #E5E7EB;
 }
 
-html,
 body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
   padding: 0;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
     Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
-  background-color: #f9fafb;
 }
 
 * {
