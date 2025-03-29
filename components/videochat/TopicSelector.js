@@ -1,83 +1,34 @@
 import { useState, useEffect } from 'react';
-import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts';
+import { FaSearch } from 'react-icons/fa';
 
 const TOPICS = [
-  { id: 'politics', name: 'Politics', icon: '🏛️' },
-  { id: 'technology', name: 'Technology', icon: '💻' },
-  { id: 'science', name: 'Science', icon: '🔬' },
-  { id: 'philosophy', name: 'Philosophy', icon: '🧠' },
-  { id: 'religion', name: 'Religion', icon: '🙏' },
-  { id: 'art', name: 'Art & Culture', icon: '🎨' },
-  { id: 'environment', name: 'Environment', icon: '🌍' },
-  { id: 'education', name: 'Education', icon: '📚' },
-  { id: 'economics', name: 'Economics', icon: '📈' },
-  { id: 'health', name: 'Health & Medicine', icon: '🏥' },
-  { id: 'sports', name: 'Sports', icon: '⚽' },
-  { id: 'food', name: 'Food & Cuisine', icon: '🍲' },
-  { id: 'travel', name: 'Travel', icon: '✈️' },
-  { id: 'music', name: 'Music', icon: '🎵' },
-  { id: 'movies', name: 'Movies & TV', icon: '🎬' },
-  { id: 'gaming', name: 'Gaming', icon: '🎮' },
-  { id: 'fashion', name: 'Fashion', icon: '👗' },
-  { id: 'relationships', name: 'Relationships', icon: '❤️' },
-  { id: 'parenting', name: 'Parenting', icon: '👶' },
-  { id: 'languages', name: 'Languages', icon: '🗣️' },
-];
-
-const LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-];
-
-const CONTINENTS = [
-  { code: 'any', name: 'Any Region' },
-  { code: 'na', name: 'North America' },
-  { code: 'sa', name: 'South America' },
-  { code: 'eu', name: 'Europe' },
-  { code: 'as', name: 'Asia' },
-  { code: 'af', name: 'Africa' },
-  { code: 'oc', name: 'Oceania' },
+  { id: 'politics', name: 'Politics and Current Events' },
+  { id: 'philosophy', name: 'Philosophy and Ethics' },
+  { id: 'science', name: 'Science and Technology' },
+  { id: 'culture', name: 'Arts and Culture' },
+  { id: 'society', name: 'Society and Social Issues' },
+  { id: 'education', name: 'Education and Learning' },
+  { id: 'health', name: 'Health and Wellness' },
+  { id: 'environment', name: 'Environment and Climate' },
+  { id: 'business', name: 'Business and Economics' },
+  { id: 'sports', name: 'Sports and Recreation' }
 ];
 
 const ROLES = [
   { id: 'participant', name: 'Participant' },
-  { id: 'observer', name: 'Observer' },
+  { id: 'observer', name: 'Observer' }
 ];
 
-// Sample conversation starters for each topic
-const CONVERSATION_STARTERS = {
-  politics: [
-    "What's your view on the role of government in society?",
-    "How do you feel about the current political climate in your country?",
-    "What political system do you think works best and why?",
-  ],
-  technology: [
-    "Do you think AI will ultimately benefit or harm humanity?",
-    "What technological innovation are you most excited about?",
-    "How has technology changed your daily life in the past decade?",
-  ],
-  // Add more starters for other topics as needed
-};
-
 const TopicSelector = ({ 
-  selectedTopic, 
-  onTopicSelect, 
-  filters, 
-  setFilters, 
-  role, 
-  setRole, 
-  onFindPartner,
-  isFinding 
+  selectedTopic,
+  onTopicSelect,
+  selectedRole,
+  onRoleSelect,
+  filters,
+  onFilterChange
 }) => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
@@ -148,65 +99,99 @@ const TopicSelector = ({
   };
 
   return (
-    <div className="space-y-6 p-4">
-      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Find Discussion Partner</h2>
+    <div className="space-y-6">
+      {/* Search */}
+      <div className="relative">
+        <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Search topics..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Language Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+          <select
+            value={filters.language}
+            onChange={(e) => onFilterChange({ language: e.target.value })}
+            className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+          >
+            {[
+              { code: 'en', name: 'English' },
+              { code: 'es', name: 'Spanish' },
+              { code: 'fr', name: 'French' },
+              { code: 'ru', name: 'Russian' }
+            ].map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
         
-        {/* Search input */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search topics..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-field w-full"
-          />
+        {/* Region Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Region</label>
+          <select
+            value={filters.continent}
+            onChange={(e) => onFilterChange({ continent: e.target.value })}
+            className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+          >
+            {[
+              { code: 'any', name: 'Any Region' },
+              { code: 'na', name: 'North America' },
+              { code: 'eu', name: 'Europe' },
+              { code: 'as', name: 'Asia' }
+            ].map((continent) => (
+              <option key={continent.code} value={continent.code}>
+                {continent.name}
+              </option>
+            ))}
+          </select>
         </div>
+        
+        {/* Role Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+          <select
+            value={selectedRole}
+            onChange={(e) => onRoleSelect(e.target.value)}
+            className="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+          >
+            {ROLES.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-        {/* Topics Grid */}
-        <div className="topics-grid">
-          {filteredTopics.map((topic) => (
-            <button
-              key={topic.id}
-              onClick={() => handleTopicSelect(topic.id)}
-              className={`topic-card ${
-                selectedTopic === topic.id
-                  ? 'topic-card-selected'
-                  : 'topic-card-default'
+      {/* Topics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredTopics.map((topic) => (
+          <div
+            key={topic.id}
+            className={`p-4 rounded-lg border transition-all duration-200 cursor-pointer
+              ${selectedTopic === topic.id
+                ? 'border-indigo-500 bg-indigo-50'
+                : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
               }`}
-            >
-              <div className="text-2xl mb-2">{topic.icon}</div>
-              <div className="font-medium">{topic.name}</div>
-              {onlineUsers[topic.id] > 0 && (
-                <div 
-                  className="online-badge"
-                  style={{
-                    backgroundColor: selectedTopic === topic.id ? 'rgba(255, 255, 255, 0.2)' : 'rgba(79, 70, 229, 0.1)',
-                    color: selectedTopic === topic.id ? 'white' : '#4F46E5'
-                  }}
-                >
-                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                  {onlineUsers[topic.id]} online
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Conversation Starters */}
-        {selectedTopic && CONVERSATION_STARTERS[selectedTopic] && (
-          <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-3">Conversation Starters</h3>
-            <ul className="space-y-2 text-gray-600">
-              {CONVERSATION_STARTERS[selectedTopic].map((starter, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <span className="text-primary">•</span>
-                  <span>{starter}</span>
-                </li>
-              ))}
-            </ul>
+            onClick={() => handleTopicSelect(topic.id)}
+          >
+            <h3 className="font-medium text-gray-900">{topic.name}</h3>
+            <div className="mt-2 flex items-center text-sm text-gray-500">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+              {onlineUsers[topic.id] || 0} online
+            </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

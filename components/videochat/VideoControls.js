@@ -1,27 +1,32 @@
 import React from 'react';
 import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash } from 'react-icons/fa';
 
-const VideoControls = ({ audioEnabled, videoEnabled, toggleAudio, toggleVideo }) => {
+const VideoControls = ({
+  audioEnabled,
+  videoEnabled,
+  onToggleAudio,
+  onToggleVideo
+}) => {
   return (
-    <div className="flex items-center justify-center space-x-3 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full">
+    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-4">
       <button
-        onClick={toggleAudio}
-        className={`w-10 h-10 flex items-center justify-center rounded-full ${
-          audioEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-500'
-        } transition-colors`}
-        title={audioEnabled ? 'Mute' : 'Unmute'}
+        onClick={onToggleAudio}
+        className={`p-3 rounded-full ${
+          audioEnabled ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600'
+        } hover:bg-opacity-90 transition-colors`}
+        aria-label={audioEnabled ? 'Mute microphone' : 'Unmute microphone'}
       >
-        {audioEnabled ? <FaMicrophone className="text-white" /> : <FaMicrophoneSlash className="text-white" />}
+        {audioEnabled ? <FaMicrophone size={20} /> : <FaMicrophoneSlash size={20} />}
       </button>
       
       <button
-        onClick={toggleVideo}
-        className={`w-10 h-10 flex items-center justify-center rounded-full ${
-          videoEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-500'
-        } transition-colors`}
-        title={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
+        onClick={onToggleVideo}
+        className={`p-3 rounded-full ${
+          videoEnabled ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600'
+        } hover:bg-opacity-90 transition-colors`}
+        aria-label={videoEnabled ? 'Turn off camera' : 'Turn on camera'}
       >
-        {videoEnabled ? <FaVideo className="text-white" /> : <FaVideoSlash className="text-white" />}
+        {videoEnabled ? <FaVideo size={20} /> : <FaVideoSlash size={20} />}
       </button>
     </div>
   );

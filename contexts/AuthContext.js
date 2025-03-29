@@ -8,8 +8,10 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  onIdTokenChanged
 } from 'firebase/auth';
+import { toast } from 'react-toastify';
 
 const AuthContext = createContext({});
 
@@ -18,7 +20,8 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // Listen for auth state changes
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUser({
           uid: user.uid,
@@ -32,6 +35,20 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
+    // Listen for token changes (session expiration)
+    const unsubscribeToken = onIdTokenChanged(auth, (user) => {
+      if (user) {
+        // Token is valid
+        user.getIdToken(true).catch((error) => {
+          console.error('Error refreshing token:', error);
+          if (error.code === 'auth/id-token-expired') {
+            toast.error('Your session has expired. Please sign in again.');
+            logout();
+          }
+        });
+      }
+    });
+
     // Check if the user has been redirected from auth provider
     handleRedirectResult()
       .then((result) => {
@@ -41,9 +58,13 @@ export function AuthProvider({ children }) {
       })
       .catch((error) => {
         console.error("Error handling redirect in context:", error);
+        toast.error('Authentication failed. Please try again.');
       });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      unsubscribeToken();
+    };
   }, []);
 
   const signInWithGoogle = async () => {
@@ -66,6 +87,13 @@ export function AuthProvider({ children }) {
       }
     } catch (error) {
       console.error('Error signing in with Google:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast.info('Sign in was cancelled');
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('Please allow popups for this site');
+      } else {
+        toast.error('Failed to sign in with Google');
+      }
       throw error;
     }
   };
@@ -76,6 +104,15 @@ export function AuthProvider({ children }) {
       return result.user;
     } catch (error) {
       console.error('Error signing in with email:', error);
+      if (error.code === 'auth/user-not-found') {
+        toast.error('No account found with this email');
+      } else if (error.code === 'auth/wrong-password') {
+        toast.error('Incorrect password');
+      } else if (error.code === 'auth/too-many-requests') {
+        toast.error('Too many failed attempts. Please try again later');
+      } else {
+        toast.error('Failed to sign in');
+      }
       throw error;
     }
   };
@@ -87,6 +124,13 @@ export function AuthProvider({ children }) {
       return result.user;
     } catch (error) {
       console.error('Error signing up with email:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error('An account with this email already exists');
+      } else if (error.code === 'auth/weak-password') {
+        toast.error('Password should be at least 6 characters');
+      } else {
+        toast.error('Failed to create account');
+      }
       throw error;
     }
   };
@@ -95,8 +139,10 @@ export function AuthProvider({ children }) {
     try {
       await signOut(auth);
       setUser(null);
+      toast.success('Successfully signed out');
     } catch (error) {
       console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
       throw error;
     }
   };
@@ -117,6 +163,10 @@ export function AuthProvider({ children }) {
   );
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
-} 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}; 
