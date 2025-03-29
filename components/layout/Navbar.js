@@ -6,18 +6,27 @@ import { FaUser, FaSignOutAlt, FaHome, FaVideo, FaHistory, FaBars, FaTimes } fro
 import { useAuth } from '@/contexts';
 
 const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { user, signInWithGoogle, logout } = useAuth();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSignOut = async () => {
-    try {
-      await logout();
-      toast.success('Successfully signed out!');
-      setIsOpen(false);
-    } catch (error) {
-      console.error('Error signing out', error);
-      toast.error(error.message);
+  const handleAuth = async () => {
+    if (user) {
+      try {
+        await logout();
+      } catch (error) {
+        console.error('Error logging out:', error);
+      }
+    } else {
+      try {
+        setLoading(true);
+        await signInWithGoogle();
+      } catch (error) {
+        console.error('Error signing in:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -54,15 +63,22 @@ const Navbar = () => {
                 <NavLink href="/history" icon={FaHistory}>History</NavLink>
                 <NavLink href="/profile" icon={FaUser}>Profile</NavLink>
                 <button
-                  onClick={handleSignOut}
+                  onClick={handleAuth}
+                  disabled={loading}
                   className="ml-4 text-secondary hover:text-white px-3 py-2 rounded-md text-sm font-medium flex items-center transition-all duration-300 hover:bg-primary-light"
                 >
                   <FaSignOutAlt className="mr-2" />
-                  Sign Out
+                  {loading ? 'Signing out...' : 'Sign Out'}
                 </button>
               </>
             ) : (
-              <NavLink href="/auth">Sign In</NavLink>
+              <button
+                onClick={handleAuth}
+                disabled={loading}
+                className="px-4 py-2 text-sm font-medium text-indigo-600 bg-white rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                {loading ? 'Signing in...' : 'Sign In'}
+              </button>
             )}
           </div>
 
@@ -88,15 +104,22 @@ const Navbar = () => {
               <NavLink href="/history" icon={FaHistory}>History</NavLink>
               <NavLink href="/profile" icon={FaUser}>Profile</NavLink>
               <button
-                onClick={handleSignOut}
+                onClick={handleAuth}
+                disabled={loading}
                 className="w-full text-left text-secondary hover:text-white px-3 py-2 rounded-md text-sm font-medium flex items-center transition-all duration-300 hover:bg-primary-light"
               >
                 <FaSignOutAlt className="mr-2" />
-                Sign Out
+                {loading ? 'Signing out...' : 'Sign Out'}
               </button>
             </>
           ) : (
-            <NavLink href="/auth">Sign In</NavLink>
+            <button
+              onClick={handleAuth}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-indigo-600 bg-white rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
           )}
         </div>
       </div>
