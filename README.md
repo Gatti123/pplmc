@@ -1,127 +1,59 @@
-# Polemica
+# Polemica - Video Discussion Platform
 
-Polemica is a platform for video chats in a chatroulette format, allowing users to engage in meaningful discussions with random partners based on selected topics.
+A real-time video discussion platform built with Next.js, Firebase, and WebRTC.
 
 ## Features
 
-- **Video Chat**: Random matching with filters for language and continent
-- **Observer Mode**: Users can watch discussions without participating
-- **Text Chat**: Parallel text communication during video discussions
-- **Discussion Timer**: Optional timer for discussions (5, 10, or 15 minutes)
-- **Topic Selection**: Choose from a variety of discussion topics
-- **User Profiles**: Customize your profile with avatar and bio
-- **Recent Discussions**: View and continue recent discussions
-- **Authentication**: Sign in with email or Google
+- Real-time video chat with WebRTC
+- Text chat with Socket.IO
+- Google Authentication
+- Topic-based discussions
+- User profiles and preferences
+- Responsive design with Tailwind CSS
 
 ## Tech Stack
 
-- **Frontend**: Next.js, React, Tailwind CSS
-- **Backend**: Firebase (Authentication, Firestore, Storage)
-- **Video Chat**: Twilio Video
-- **Deployment**: Vercel / Firebase Hosting
+- Next.js 14
+- Firebase (Authentication, Firestore, Storage)
+- WebRTC for video chat
+- Socket.IO for text chat
+- Redux Toolkit for state management
+- Tailwind CSS for styling
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js (v14 or later)
-- npm or yarn
-- Firebase account
-- Twilio account
-
-### Installation
-
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/polemica.git
-   cd polemica
-   ```
+```bash
+git clone https://github.com/Gatti123/pplmc.git
+cd pplmc
+```
 
 2. Install dependencies:
-   ```
-   npm install
-   # or
-   yarn install
-   ```
+```bash
+npm install
+```
 
-3. Create a `.env.local` file in the root directory with your Firebase and Twilio credentials:
-   ```
-   # Firebase Configuration
-   NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-auth-domain
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-storage-bucket
-   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
-   NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
-
-   # Twilio Configuration
-   NEXT_PUBLIC_TWILIO_ACCOUNT_SID=your-twilio-account-sid
-   NEXT_PUBLIC_TWILIO_API_KEY=your-twilio-api-key
-   NEXT_PUBLIC_TWILIO_API_SECRET=your-twilio-api-secret
-   ```
+3. Create a `.env.local` file with your Firebase configuration:
+```
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
 
 4. Run the development server:
-   ```
-   npm run dev
-   # or
-   yarn dev
-   ```
+```bash
+npm run dev
+```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
-
-## Firebase Setup
-
-1. Create a new Firebase project at [https://console.firebase.google.com/](https://console.firebase.google.com/)
-2. Enable Authentication (Email/Password and Google providers)
-3. Create a Firestore database
-4. Enable Storage
-5. Add a web app to your Firebase project and copy the configuration to your `.env.local` file
-
-## Twilio Setup
-
-1. Create a Twilio account at [https://www.twilio.com/](https://www.twilio.com/)
-2. Navigate to the Programmable Video section
-3. Create an API key and secret
-4. Copy the Account SID, API key, and API secret to your `.env.local` file
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Deployment
 
-### Vercel
-
-1. Push your code to a GitHub repository
-2. Import the project in Vercel
-3. Add your environment variables
-4. Deploy
-
-### Firebase Hosting
-
-1. Install Firebase CLI:
-   ```
-   npm install -g firebase-tools
-   ```
-
-2. Login to Firebase:
-   ```
-   firebase login
-   ```
-
-3. Initialize Firebase Hosting:
-   ```
-   firebase init hosting
-   ```
-
-4. Build the project:
-   ```
-   npm run build
-   # or
-   yarn build
-   ```
-
-5. Deploy to Firebase Hosting:
-   ```
-   firebase deploy --only hosting
-   ```
+The project is configured for deployment on Vercel. Simply connect your GitHub repository to Vercel and it will automatically deploy your application.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT
