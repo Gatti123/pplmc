@@ -1,41 +1,62 @@
-import { useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts';
-import VideoChat from '@/components/videochat/VideoChat';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import TopicSelector from '@/components/TopicSelector';
+import VideoChat from '@/components/VideoChat';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import Head from 'next/head';
 
-const VideoChatPage = () => {
-  const { user, loading } = useAuth();
+export default function VideoChatPage() {
+  const { user } = useAuth();
   const router = useRouter();
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth?redirect=/videochat');
-    }
-  }, [user, loading, router]);
+    // Имитация загрузки
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
 
-  if (loading) {
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleTopicSelect = (topic) => {
+    setSelectedTopic(topic);
+  };
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }
 
-  if (!user) {
-    return null; // Will redirect in useEffect
-  }
-
   return (
-    <>
+    <ProtectedRoute>
       <Head>
         <title>Video Chat | Polemica</title>
         <meta name="description" content="Engage in thought-provoking video discussions on Polemica" />
       </Head>
-      <VideoChat />
-    </>
+      <div className="min-h-screen bg-gray-100">
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <div className="px-4 py-6 sm:px-0">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h1 className="text-2xl font-bold text-gray-900 mb-6">
+                Start a Discussion
+              </h1>
+              
+              {!selectedTopic ? (
+                <TopicSelector onSelect={handleTopicSelect} />
+              ) : (
+                <VideoChat topic={selectedTopic} />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </ProtectedRoute>
   );
-};
-
-export default VideoChatPage; 
+} 
